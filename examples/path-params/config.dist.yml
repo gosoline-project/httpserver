@@ -1,0 +1,10 @@
+env: dev
+
+app_project: gosoline
+app_family: httpserver
+app_group: examples
+app_name: path-params
+
+httpserver:
+  default:
+    port: 8088

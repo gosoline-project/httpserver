@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "gosoline-httpserver",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

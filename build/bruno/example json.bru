@@ -1,0 +1,22 @@
+meta {
+  name: example json
+  type: http
+  seq: 3
+}
+
+post {
+  url: http://localhost:8088/a
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "id": 1337,
+    "name": "foobar"
+  }
+}
+
+settings {
+  encodeUrl: true
+}
