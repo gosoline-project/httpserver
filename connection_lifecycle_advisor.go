@@ -3,15 +3,15 @@ package httpserver
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/gin-gonic/gin"
 	"github.com/justtrackio/gosoline/pkg/appctx"
 	"github.com/justtrackio/gosoline/pkg/cache"
 	"github.com/justtrackio/gosoline/pkg/cfg"
 	"github.com/justtrackio/gosoline/pkg/clock"
 	"github.com/justtrackio/gosoline/pkg/log"
-	"github.com/valyala/fasthttp"
 )
 
 const (
@@ -23,7 +23,7 @@ const (
 type (
 	ConnectionLifeCycleAdvisor interface {
 		// ShouldCloseConnection checks whether the connection to the remote address should be closed.
-		ShouldCloseConnection(remoteAddr string, headers fasthttp.RequestHeader) bool
+		ShouldCloseConnection(remoteAddr string, headers http.Header) bool
 	}
 
 	noopConnectionLifeCycleAdvisor struct{}
@@ -82,7 +82,7 @@ func NewConnectionLifeCycleAdvisorWithInterfaces(
 	}
 }
 
-func (traffic connectionLifeCycleAdvisor) ShouldCloseConnection(remoteAddr string, _ fasthttp.RequestHeader) bool {
+func (traffic connectionLifeCycleAdvisor) ShouldCloseConnection(remoteAddr string, _ http.Header) bool {
 	shouldBeClosed := false
 
 	if remoteAddr == "" {
@@ -117,14 +117,14 @@ func (entry trafficEntry) ShouldClose(maxAge time.Duration, maxRequestCount int,
 	return maxAge > 0 && entry.activeSince.Add(maxAge).Before(instant)
 }
 
-func (noopConnectionLifeCycleAdvisor) ShouldCloseConnection(_ string, _ fasthttp.RequestHeader) bool {
+func (noopConnectionLifeCycleAdvisor) ShouldCloseConnection(_ string, _ http.Header) bool {
 	return false
 }
 
 // ProvideConnectionLifeCycleInterceptor provides a ConnectionLifeCycleAdvisorInterceptor that
 // controls closing of connections based on the ConnectionLifeCycleAdvisor.
-func ProvideConnectionLifeCycleInterceptor(ctx context.Context, config cfg.Config, logger log.Logger, serverName string) (fiber.Handler, error) {
-	return appctx.Provide(ctx, connectionLifeCycleKey(serverName+"-interceptor"), func() (fiber.Handler, error) {
+func ProvideConnectionLifeCycleInterceptor(ctx context.Context, config cfg.Config, logger log.Logger, serverName string) (gin.HandlerFunc, error) {
+	return appctx.Provide(ctx, connectionLifeCycleKey(serverName+"-interceptor"), func() (gin.HandlerFunc, error) {
 		connectionLifeCycleAdvisor, err := ProvideConnectionLifeCycleAdvisor(ctx, config, logger, serverName)
 		if err != nil {
 			return nil, err
@@ -134,18 +134,17 @@ func ProvideConnectionLifeCycleInterceptor(ctx context.Context, config cfg.Confi
 	})
 }
 
-// NewConnectionLifeCycleInterceptor creates a fiber.Handler that uses the ConnectionLifeCycleAdvisor to
+// NewConnectionLifeCycleInterceptor creates a gin.HandlerFunc that uses the ConnectionLifeCycleAdvisor to
 // determine whether the connection to the remote address should be closed.
-func NewConnectionLifeCycleInterceptor(connectionLifeCycleAdvisor ConnectionLifeCycleAdvisor) fiber.Handler {
-	return func(reqCtx fiber.Ctx) error {
-		remoteAddr := reqCtx.IP()
-
-		if connectionLifeCycleAdvisor.ShouldCloseConnection(remoteAddr, reqCtx.Request().Header) {
+func NewConnectionLifeCycleInterceptor(connectionLifeCycleAdvisor ConnectionLifeCycleAdvisor) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		remoteAddr := c.Request.RemoteAddr
+		if connectionLifeCycleAdvisor.ShouldCloseConnection(remoteAddr, c.Request.Header) {
 			// This works for both HTTP/1.1 and HTTP/2 connections.
 			// see: https://github.com/golang/go/issues/20977
-			reqCtx.Set("Connection", "close")
+			c.Header("Connection", "close")
 		}
 
-		return reqCtx.Next()
+		c.Next()
 	}
 }

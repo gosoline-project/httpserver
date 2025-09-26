@@ -56,20 +56,27 @@ func NewTextResponse(text string, options ...ResponseOption) *response {
 }
 
 type jsonResponse[T any] struct {
-	body       T
-	header     http.Header
-	statusCode int
+	*response
+	body T
 }
 
 func NewJsonResponse[T any](body T, options ...ResponseOption) *jsonResponse[T] {
 	header := make(http.Header)
 	header.Set("Content-Type", "application/json; charset=utf-8")
 
-	return &jsonResponse[T]{
-		body:       body,
-		header:     header,
-		statusCode: http.StatusOK,
+	resp := &jsonResponse[T]{
+		response: &response{
+			header:     header,
+			statusCode: http.StatusOK,
+		},
+		body: body,
 	}
+
+	for _, option := range options {
+		option(resp.response)
+	}
+
+	return resp
 }
 
 func (j jsonResponse[T]) Body() ([]byte, error) {

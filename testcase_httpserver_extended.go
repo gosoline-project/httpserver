@@ -77,10 +77,6 @@ type ToHttpserverTestCaseList interface {
 // This is useful as it runs after the app has been constructed, fixtures loaded, etc.
 type HttpserverTestCaseListProvider func() []*HttpserverTestCase
 
-type ProtobufEncodable interface {
-	ToMessage() (proto.Message, error)
-}
-
 type encodeBodyProtobuf struct {
 	ProtobufEncodable
 }

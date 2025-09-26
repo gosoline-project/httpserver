@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/gin-gonic/gin"
 	"github.com/gosoline-project/httpserver"
 	"github.com/justtrackio/gosoline/pkg/cfg"
 	"github.com/justtrackio/gosoline/pkg/clock"
@@ -13,32 +13,26 @@ import (
 
 func main() {
 	httpserver.RunDefaultServer(func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
-		router.Get("/bla", func(ctx fiber.Ctx) error {
-			ctx.Write([]byte("bla"))
-
-			return nil
+		router.GET("/bla", func(ctx *gin.Context) {
+			ctx.Writer.WriteString("bla")
 		})
 
 		grp := router.Group("grp")
-		grp.Get("/bla", func(ctx fiber.Ctx) error {
-			ctx.Write([]byte("grouped bla"))
-
-			return nil
+		grp.GET("/bla", func(ctx *gin.Context) {
+			ctx.Writer.WriteString("grouped bla")
 		})
 
-		router.Get("/blocking", func(ctx fiber.Ctx) error {
-			timer := clock.NewRealTimer(time.Minute)
+		router.GET("/blocking", func(ctx *gin.Context) {
+			timer := clock.NewRealTimer(time.Second * 5)
 
 			select {
-			case <-ctx.RequestCtx().Done():
+			case <-ctx.Done():
 				logger.Info(ctx, "context done")
 			case <-timer.Chan():
 				logger.Info(ctx, "timer done")
 			}
 
-			ctx.SendString("done")
-
-			return nil
+			ctx.Writer.WriteString("done")
 		})
 
 		return nil

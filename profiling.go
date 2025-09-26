@@ -2,9 +2,11 @@ package httpserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/gin-gonic/gin"
 	"github.com/justtrackio/gosoline/pkg/cfg"
 	"github.com/justtrackio/gosoline/pkg/kernel"
 	"github.com/justtrackio/gosoline/pkg/log"
@@ -14,9 +16,8 @@ type Profiling struct {
 	kernel.BackgroundModule
 	kernel.ServiceStage
 
-	logger   log.Logger
-	router   *fiber.App
-	settings *ProfilingSettings
+	logger log.Logger
+	server *http.Server
 }
 
 func ProfilingModuleFactory(_ context.Context, config cfg.Config, _ log.Logger) (map[string]kernel.ModuleFactory, error) {
@@ -31,7 +32,8 @@ func ProfilingModuleFactory(_ context.Context, config cfg.Config, _ log.Logger) 
 
 	return map[string]kernel.ModuleFactory{
 		"profiling": func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
-			router := fiber.New()
+			gin.SetMode(gin.ReleaseMode)
+			router := gin.New()
 
 			profiling := NewProfilingWithInterfaces(logger, router, settings)
 
@@ -40,26 +42,30 @@ func ProfilingModuleFactory(_ context.Context, config cfg.Config, _ log.Logger) 
 	}, nil
 }
 
-func NewProfilingWithInterfaces(logger log.Logger, router *fiber.App, settings *ProfilingSettings) *Profiling {
+func NewProfilingWithInterfaces(logger log.Logger, router *gin.Engine, settings *ProfilingSettings) *Profiling {
 	AddProfilingEndpoints(router)
 
+	addr := fmt.Sprintf(":%d", settings.Api.Port)
+
+	server := &http.Server{
+		Addr:    addr,
+		Handler: router,
+	}
+
 	return &Profiling{
-		logger:   logger,
-		router:   router,
-		settings: settings,
+		logger: logger,
+		server: server,
 	}
 }
 
 func (p *Profiling) Run(ctx context.Context) error {
 	go p.waitForStop(ctx)
+	err := p.server.ListenAndServe()
 
-	addr := fmt.Sprintf(":%d", p.settings.Api.Port)
-	conf := fiber.ListenConfig{
-		DisableStartupMessage: true,
-	}
+	if !errors.Is(err, http.ErrServerClosed) {
+		p.logger.Error(ctx, "profiling api server closed unexpected", err)
 
-	if err := p.router.Listen(addr, conf); err != nil {
-		return fmt.Errorf("profiling api server closed unexpected: %w", err)
+		return err
 	}
 
 	return nil
@@ -67,8 +73,8 @@ func (p *Profiling) Run(ctx context.Context) error {
 
 func (p *Profiling) waitForStop(ctx context.Context) {
 	<-ctx.Done()
-
-	if err := p.router.Shutdown(); err != nil {
+	err := p.server.Close()
+	if err != nil {
 		p.logger.Error(ctx, "profiling api server close", err)
 	}
 }

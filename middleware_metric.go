@@ -2,10 +2,9 @@ package httpserver
 
 import (
 	"fmt"
-	"path"
 	"time"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/gin-gonic/gin"
 	"github.com/justtrackio/gosoline/pkg/funk"
 	"github.com/justtrackio/gosoline/pkg/metric"
 )
@@ -18,42 +17,44 @@ const (
 	MetricHttpStatus               = "HttpStatus"
 )
 
-func NewMetricMiddleware(name string) (middleware fiber.Handler, setupHandler func(app *fiber.App)) {
+func NewMetricMiddleware(name string) (middleware gin.HandlerFunc, setupHandler func(definitions []Definition)) {
 	// writer without any defaults until we initialize some defaults and overwrite it
 	writer := metric.NewWriter()
 
-	middleware = func(reqCtx fiber.Ctx) error {
-		return metricMiddleware(name, reqCtx, writer)
+	middleware = func(ginCtx *gin.Context) {
+		metricMiddleware(name, ginCtx, writer)
 	}
 
-	setupHandler = func(app *fiber.App) {
-		defaults := getMetricMiddlewareDefaults(name, app.GetRoutes()...)
+	setupHandler = func(definitions []Definition) {
+		defaults := getMetricMiddlewareDefaults(name, definitions...)
 		writer = metric.NewWriter(defaults...)
 	}
 
 	return middleware, setupHandler
 }
 
-func metricMiddleware(name string, reqCtx fiber.Ctx, writer metric.Writer) error {
+func metricMiddleware(name string, ginCtx *gin.Context, writer metric.Writer) {
 	start := time.Now()
-	method := reqCtx.Method()
+	method := ginCtx.Request.Method
 
-	reqPath := reqCtx.Path()
-	if reqPath == "" {
+	path := ginCtx.FullPath()
+	if path == "" {
 		// the path was not found, so no need to print anything
-		return reqCtx.Next()
+		return
 	}
 
-	chainErr := reqCtx.Next()
+	path = trimRightPath(path)
+	path = removeDuplicates(path)
 
-	reqPath = path.Clean(reqPath)
+	ginCtx.Next()
+
 	requestTimeNano := time.Since(start)
 	requestTimeMillisecond := float64(requestTimeNano) / float64(time.Millisecond)
 
-	status := reqCtx.Response().StatusCode() / 100
+	status := ginCtx.Writer.Status() / 100
 	statusMetric := fmt.Sprintf("%s%dXX", MetricHttpStatus, status)
 
-	writer.Write(reqCtx.Context(), createMetricsWithDimensions(metric.Data{
+	writer.Write(ginCtx.Request.Context(), createMetricsWithDimensions(metric.Data{
 		{
 			Priority:   metric.PriorityHigh,
 			MetricName: MetricHttpRequestResponseTime,
@@ -75,15 +76,13 @@ func metricMiddleware(name string, reqCtx fiber.Ctx, writer metric.Writer) error
 	}, map[string]metric.Dimensions{
 		perRoute: {
 			"Method":     method,
-			"Path":       reqPath,
+			"Path":       path,
 			"ServerName": name,
 		},
 		"": {
 			"ServerName": name,
 		},
 	}))
-
-	return chainErr
 }
 
 // createMetricsWithDimensions is creating a metric.Data set
@@ -104,14 +103,14 @@ func createMetricsWithDimensions(metrics metric.Data, dimensionsByMetricSuffix m
 	}))
 }
 
-func getMetricMiddlewareDefaults(name string, definitions ...fiber.Route) metric.Data {
-	return append(funk.Map(definitions, func(route fiber.Route) *metric.Datum {
+func getMetricMiddlewareDefaults(name string, definitions ...Definition) metric.Data {
+	return append(funk.Map(definitions, func(definition Definition) *metric.Datum {
 		return &metric.Datum{
 			Priority:   metric.PriorityHigh,
 			MetricName: MetricHttpRequestCountPerRoute,
 			Dimensions: metric.Dimensions{
-				"Method":     route.Method,
-				"Path":       route.Path,
+				"Method":     definition.httpMethod,
+				"Path":       definition.getAbsolutePath(),
 				"ServerName": name,
 			},
 			Unit:  metric.UnitCount,

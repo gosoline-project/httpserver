@@ -2,12 +2,13 @@ package httpserver_test
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"sync/atomic"
 	"testing"
 
+	"github.com/gin-gonic/gin"
 	"github.com/go-resty/resty/v2"
-	"github.com/gofiber/fiber/v3"
 	"github.com/gosoline-project/httpserver"
 	"github.com/justtrackio/gosoline/pkg/cfg"
 	"github.com/justtrackio/gosoline/pkg/funk"
@@ -38,31 +39,26 @@ func (s *HttpServerExtendedTestSuite) SetupSuite() []suite.Option {
 
 func (s *HttpServerExtendedTestSuite) SetupHttpServerRouter() httpserver.RouterFactory {
 	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
-		router.Get("/noop", func(fibCtx fiber.Ctx) error {
-			fibCtx.Status(http.StatusOK)
-			fibCtx.WriteString("{}")
-
-			return nil
+		router.GET("/noop", func(ginCtx *gin.Context) {
+			ginCtx.String(http.StatusOK, "{}")
 		})
 
-		router.Post("/echo", func(fibCtx fiber.Ctx) error {
-			contentType := fibCtx.Request().Header.Peek("Content-Type")
+		router.POST("/echo", func(ginCtx *gin.Context) {
+			body, err := io.ReadAll(ginCtx.Request.Body)
+			s.NoError(err)
 
-			fibCtx.Status(http.StatusOK)
-			fibCtx.Response().Header.SetContentType(string(contentType))
-			fibCtx.Write(fibCtx.Body())
+			contentType := ginCtx.ContentType()
 
-			return nil
+			ginCtx.Data(http.StatusOK, contentType, body)
 		})
 
-		router.Post("/reverse", func(fibCtx fiber.Ctx) error {
-			contentType := fibCtx.Request().Header.Peek("Content-Type")
+		router.POST("/reverse", func(ginCtx *gin.Context) {
+			body, err := io.ReadAll(ginCtx.Request.Body)
+			s.NoError(err)
 
-			fibCtx.Status(http.StatusOK)
-			fibCtx.Response().Header.SetContentType(string(contentType))
-			fibCtx.Write(funk.Reverse(fibCtx.Body()))
+			contentType := ginCtx.ContentType()
 
-			return nil
+			ginCtx.Data(http.StatusOK, contentType, funk.Reverse(body))
 		})
 
 		return nil

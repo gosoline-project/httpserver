@@ -11,13 +11,14 @@ import (
 	"strings"
 	"sync/atomic"
 
-	"github.com/gofiber/fiber/v3"
-	recoverer "github.com/gofiber/fiber/v3/middleware/recover"
+	"github.com/gin-contrib/location"
+	"github.com/gin-gonic/gin"
 	"github.com/justtrackio/gosoline/pkg/appctx"
 	"github.com/justtrackio/gosoline/pkg/cfg"
 	"github.com/justtrackio/gosoline/pkg/clock"
 	"github.com/justtrackio/gosoline/pkg/kernel"
 	"github.com/justtrackio/gosoline/pkg/log"
+	"github.com/justtrackio/gosoline/pkg/tracing"
 )
 
 type ServerMetadata struct {
@@ -38,93 +39,100 @@ type HttpServer struct {
 	kernel.ServiceStage
 
 	logger   log.Logger
-	server   *fiber.App
+	server   *http.Server
 	listener net.Listener
 	settings *Settings
 	healthy  atomic.Bool
 }
 
-func NewServer(name string, routerFactory RouterFactory) kernel.ModuleFactory {
+func NewServer(name string, definer RouterFactory) kernel.ModuleFactory {
 	return func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
 		settings := &Settings{}
 		if err := config.UnmarshalKey(HttpserverSettingsKey(name), settings); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal httpserver settings: %w", err)
 		}
 
-		return NewServerWithSettings(name, routerFactory, settings)(ctx, config, logger)
+		return NewServerWithSettings(ctx, name, definer, settings)(ctx, config, logger)
 	}
 }
 
-func NewServerWithSettings(name string, routerFactory RouterFactory, settings *Settings) kernel.ModuleFactory {
+func NewServerWithSettings(ctx context.Context, name string, definer RouterFactory, settings *Settings) kernel.ModuleFactory {
 	return func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
 		channel := fmt.Sprintf("httpserver-%s", name)
 		logger = logger.WithChannel(channel)
 
+		gin.SetMode(settings.Mode)
+
 		var (
-			err error
-			//compressionMiddlewares         []gin.HandlerFunc
-			healthChecker                  kernel.HealthChecker
-			connectionLifeCycleInterceptor fiber.Handler
+			err                    error
+			tracingInstrumentor    tracing.Instrumentor
+			definitionList         []Definition
+			compressionMiddlewares []gin.HandlerFunc
+			healthChecker          kernel.HealthChecker
+			connectionLifeCycleInterceptor gin.HandlerFunc
 		)
+
+		if tracingInstrumentor, err = tracing.ProvideInstrumentor(ctx, config, logger); err != nil {
+			return nil, fmt.Errorf("can not create tracingInstrumentor: %w", err)
+		}
 
 		metricMiddleware, setupMetricMiddleware := NewMetricMiddleware(name)
 
-		//if compressionMiddlewares, err = configureCompression(settings.Compression); err != nil {
-		//	return nil, fmt.Errorf("could not configure compression: %w", err)
-		//}
-		//
+		if compressionMiddlewares, err = configureCompression(settings.Compression); err != nil {
+			return nil, fmt.Errorf("could not configure compression: %w", err)
+		}
+
 		if connectionLifeCycleInterceptor, err = ProvideConnectionLifeCycleInterceptor(ctx, config, logger, name); err != nil {
 			return nil, fmt.Errorf("could not provide connection life cycle interceptor: %w", err)
 		}
 
-		app := fiber.New(fiber.Config{
-			ProxyHeader:  fiber.HeaderXForwardedFor,
-			ReadTimeout:  settings.Timeout.Read,
-			WriteTimeout: settings.Timeout.Write,
-			IdleTimeout:  settings.Timeout.Idle,
-			ErrorHandler: func(ctx fiber.Ctx, err error) error {
-				ctx.Status(http.StatusInternalServerError).JSON(fiber.Map{
-					"err": err.Error(),
-				})
-
-				return nil
-			},
-		})
-
-		router := NewRouter(app)
+		router := gin.New()
+		router.ContextWithFallback = true
+		router.UseRawPath = settings.Router.UseRawPath
 		router.Use(metricMiddleware)
 		router.Use(LoggingMiddleware(logger, settings.Logging))
-		//router.Use(compressionMiddlewares...)
-		router.Use(recoverer.New())
+		router.Use(compressionMiddlewares...)
+		router.Use(ErrorMiddleware())
+		router.Use(RecoveryWithSentry(logger))
+		router.Use(location.Default())
 		router.Use(connectionLifeCycleInterceptor)
 
 		if healthChecker, err = kernel.GetHealthChecker(ctx); err != nil {
 			return nil, fmt.Errorf("can not get health checker: %w", err)
 		}
-		router.Get("/health", buildHealthCheckHandler(logger, healthChecker))
+		router.GET("/health", buildHealthCheckHandler(logger, healthChecker))
 
-		if err = routerFactory(ctx, config, logger, router); err != nil {
-			return nil, fmt.Errorf("can not create router from factory: %w", err)
+		definitions := &Router{}
+		if err = definer(ctx, config, logger.WithChannel("handler"), definitions); err != nil {
+			return nil, fmt.Errorf("could not define routes: %w", err)
 		}
 
-		if _, err = router.Build(ctx, config, logger); err != nil {
+		if definitionList, err = buildRouter(ctx, config, logger, definitions, router); err != nil {
 			return nil, fmt.Errorf("could not build router: %w", err)
 		}
 
-		if err = appendMetadata(ctx, name, app); err != nil {
+		setupMetricMiddleware(definitionList)
+
+		if err = appendMetadata(ctx, name, router); err != nil {
 			return nil, fmt.Errorf("can not append metadata: %w", err)
 		}
 
-		setupMetricMiddleware(app)
-
-		return NewServerWithInterfaces(ctx, logger, app, settings)
+		return NewWithInterfaces(ctx, logger, router, tracingInstrumentor, settings)
 	}
 }
 
-func NewServerWithInterfaces(ctx context.Context, logger log.Logger, app *fiber.App, settings *Settings) (*HttpServer, error) {
+func NewWithInterfaces(ctx context.Context, logger log.Logger, router *gin.Engine, tracer tracing.Instrumentor, settings *Settings) (*HttpServer, error) {
+	server := &http.Server{
+		Addr:         ":" + settings.Port,
+		Handler:      tracer.HttpHandler(router),
+		ReadTimeout:  settings.Timeout.Read,
+		WriteTimeout: settings.Timeout.Write,
+		IdleTimeout:  settings.Timeout.Idle,
+	}
+
 	var err error
 	var listener net.Listener
-	address := ":" + settings.Port
+	address := server.Addr
 
 	if address == "" {
 		address = ":http"
@@ -140,7 +148,7 @@ func NewServerWithInterfaces(ctx context.Context, logger log.Logger, app *fiber.
 
 	apiServer := &HttpServer{
 		logger:   logger,
-		server:   app,
+		server:   server,
 		listener: listener,
 		settings: settings,
 	}
@@ -155,23 +163,12 @@ func (s *HttpServer) IsHealthy(ctx context.Context) (bool, error) {
 func (s *HttpServer) Run(ctx context.Context) error {
 	go s.waitForStop(ctx)
 
-	s.server.Hooks().OnListen(func(data fiber.ListenData) error {
-		s.healthy.Store(true)
+	err := s.server.Serve(s.listener)
 
-		return nil
-	})
-	s.server.Hooks().OnPreShutdown(func() error {
-		s.healthy.Store(false)
+	if !errors.Is(err, http.ErrServerClosed) {
+		s.logger.Error(ctx, "server closed unexpected: %w", err)
 
-		return nil
-	})
-
-	listenerConf := fiber.ListenConfig{
-		DisableStartupMessage: true,
-	}
-
-	if err := s.server.Listener(s.listener, listenerConf); err != nil {
-		return fmt.Errorf("server closed unexpected: %w", err)
+		return err
 	}
 
 	s.logger.Info(ctx, "leaving httpserver")
@@ -180,7 +177,9 @@ func (s *HttpServer) Run(ctx context.Context) error {
 }
 
 func (s *HttpServer) waitForStop(ctx context.Context) {
+	s.healthy.Store(true)
 	<-ctx.Done()
+	s.healthy.Store(false)
 
 	s.logger.Info(ctx, "waiting %s until shutting down the server", s.settings.Timeout.Drain)
 
@@ -188,9 +187,12 @@ func (s *HttpServer) waitForStop(ctx context.Context) {
 	defer t.Stop()
 	<-t.Chan()
 
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), s.settings.Timeout.Shutdown)
+	defer cancel()
+
 	s.logger.Info(ctx, "trying to gracefully shutdown httpserver")
 
-	if err := s.server.ShutdownWithTimeout(s.settings.Timeout.Shutdown); err != nil {
+	if err := s.server.Shutdown(shutdownCtx); err != nil {
 		s.logger.Error(ctx, "server shutdown: %w", err)
 	}
 }
@@ -218,7 +220,7 @@ func (s *HttpServer) GetPort() (*int, error) {
 	return &port, nil
 }
 
-func appendMetadata(ctx context.Context, name string, app *fiber.App) error {
+func appendMetadata(ctx context.Context, name string, router *gin.Engine) error {
 	var err error
 	var metadata *appctx.Metadata
 
@@ -226,8 +228,8 @@ func appendMetadata(ctx context.Context, name string, app *fiber.App) error {
 		Name: name,
 	}
 
-	routes := app.GetRoutes()
-	slices.SortFunc(routes, func(a, b fiber.Route) int {
+	routes := router.Routes()
+	slices.SortFunc(routes, func(a, b gin.RouteInfo) int {
 		return strings.Compare(a.Path+a.Method, b.Path+a.Method)
 	})
 

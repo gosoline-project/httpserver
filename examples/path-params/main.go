@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/gin-gonic/gin"
 	"github.com/gosoline-project/httpserver"
 	"github.com/justtrackio/gosoline/pkg/cfg"
 	"github.com/justtrackio/gosoline/pkg/log"
@@ -11,11 +11,9 @@ import (
 
 func main() {
 	httpserver.RunDefaultServer(func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
-		router.Get("/hello/:name", func(ctx fiber.Ctx) error {
-			name := ctx.Params("name")
-			ctx.Send([]byte("Hello, " + name))
-
-			return nil
+		router.GET("/hello/:name", func(ginCtx *gin.Context) {
+			name := ginCtx.Param("name")
+			ginCtx.Writer.WriteString("Hello, " + name)
 		})
 
 		return nil

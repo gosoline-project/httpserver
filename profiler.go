@@ -4,8 +4,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/gofiber/fiber/v3/middleware/adaptor"
+	"github.com/gin-gonic/gin"
 )
 
 const (
@@ -22,18 +21,24 @@ const (
 	ThreadCreate  = "/threadcreate"
 )
 
-func AddProfilingEndpoints(r *fiber.App) {
+func AddProfilingEndpoints(r *gin.Engine) {
 	pr := r.Group(BaseProfiling)
-	pr.Get("/", adaptor.HTTPHandler(http.HandlerFunc(pprof.Index)))
-	pr.Get(CmdLine, adaptor.HTTPHandler(http.HandlerFunc(pprof.Cmdline)))
-	pr.Get(Profile, adaptor.HTTPHandler(http.HandlerFunc(pprof.Profile)))
-	pr.Post(Symbol, adaptor.HTTPHandler(http.HandlerFunc(pprof.Symbol)))
-	pr.Get(Symbol, adaptor.HTTPHandler(http.HandlerFunc(pprof.Symbol)))
-	pr.Get(Trace, adaptor.HTTPHandler(http.HandlerFunc(pprof.Trace)))
-	pr.Get(Allocs, adaptor.HTTPHandler(pprof.Handler("allocs")))
-	pr.Get(Block, adaptor.HTTPHandler(pprof.Handler("block")))
-	pr.Get(GoRoutine, adaptor.HTTPHandler(pprof.Handler("goroutine")))
-	pr.Get(Heap, adaptor.HTTPHandler(pprof.Handler("heap")))
-	pr.Get(Mutex, adaptor.HTTPHandler(pprof.Handler("mutex")))
-	pr.Get(ThreadCreate, adaptor.HTTPHandler(pprof.Handler("threadcreate")))
+	pr.GET("/", profilingHandler(pprof.Index))
+	pr.GET(CmdLine, profilingHandler(pprof.Cmdline))
+	pr.GET(Profile, profilingHandler(pprof.Profile))
+	pr.POST(Symbol, profilingHandler(pprof.Symbol))
+	pr.GET(Symbol, profilingHandler(pprof.Symbol))
+	pr.GET(Trace, profilingHandler(pprof.Trace))
+	pr.GET(Allocs, profilingHandler(pprof.Handler("allocs").ServeHTTP))
+	pr.GET(Block, profilingHandler(pprof.Handler("block").ServeHTTP))
+	pr.GET(GoRoutine, profilingHandler(pprof.Handler("goroutine").ServeHTTP))
+	pr.GET(Heap, profilingHandler(pprof.Handler("heap").ServeHTTP))
+	pr.GET(Mutex, profilingHandler(pprof.Handler("mutex").ServeHTTP))
+	pr.GET(ThreadCreate, profilingHandler(pprof.Handler("threadcreate").ServeHTTP))
+}
+
+func profilingHandler(handler http.HandlerFunc) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		handler.ServeHTTP(c.Writer, c.Request)
+	}
 }

@@ -5,56 +5,154 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/valyala/fasthttp"
+	"github.com/gin-gonic/gin"
+	"github.com/gin-gonic/gin/binding"
+	"github.com/justtrackio/gosoline/pkg/funk"
+	"github.com/justtrackio/gosoline/pkg/refl"
 )
 
-func Bind[I any](handler func(ctx context.Context, input *I) (Response, error)) fiber.Handler {
-	return BindR[I](func(ctx context.Context, req *fasthttp.Request, input *I) (Response, error) {
+func Bind[I any](handler func(ctx context.Context, input *I) (Response, error), binders ...binding.Binding) gin.HandlerFunc {
+	return BindR[I](func(ctx context.Context, req *http.Request, input *I) (Response, error) {
 		return handler(ctx, input)
-	})
+	}, binders...)
 }
 
-func BindR[I any](handler func(ctx context.Context, req *fasthttp.Request, input *I) (Response, error)) fiber.Handler {
-	return func(reqCtx fiber.Ctx) error {
+func BindR[I any](handler func(ctx context.Context, req *http.Request, input *I) (Response, error), binders ...binding.Binding) gin.HandlerFunc {
+	tags := refl.GetTagNames(new(I))
+
+	return func(ginCtx *gin.Context) {
 		var err error
+		var input *I
 		var response Response
 
-		in := new(I)
-		if err = reqCtx.Bind().All(in); err != nil {
-			return fmt.Errorf("bind error: %w", err)
+		if input, err = bindHandleRequest[I](ginCtx, tags, binders); err != nil {
+			ginCtx.Error(fmt.Errorf("bind error: %w", err))
+
+			return
 		}
 
-		if response, err = handler(reqCtx, reqCtx.Request(), in); err != nil {
-			return fmt.Errorf("handler error: %w", err)
+		if response, err = handler(ginCtx, ginCtx.Request, input); err != nil {
+			ginCtx.Error(fmt.Errorf("handler error: %w", err))
+
+			return
 		}
 
-		return bindHandleResponse(response, reqCtx)
+		if err = bindHandleResponse(response, ginCtx); err != nil {
+			ginCtx.Error(fmt.Errorf("response error: %w", err))
+		}
 	}
 }
 
-func BindN(handler func(ctx context.Context) (Response, error)) fiber.Handler {
-	return BindNR(func(ctx context.Context, req *fasthttp.Request) (Response, error) {
+func BindN(handler func(ctx context.Context) (Response, error)) gin.HandlerFunc {
+	return BindNR(func(ctx context.Context, req *http.Request) (Response, error) {
 		return handler(ctx)
 	})
 }
 
-func BindNR(handler func(ctx context.Context, req *fasthttp.Request) (Response, error)) fiber.Handler {
-	return func(reqCtx fiber.Ctx) error {
+func BindNR(handler func(ctx context.Context, req *http.Request) (Response, error)) gin.HandlerFunc {
+	return func(ginCtx *gin.Context) {
 		var err error
 		var response Response
 
-		if response, err = handler(reqCtx, reqCtx.Request()); err != nil {
-			return fmt.Errorf("handler error: %w", err)
+		if response, err = handler(ginCtx, ginCtx.Request); err != nil {
+			ginCtx.Error(fmt.Errorf("handler error: %w", err))
+
+			return
 		}
 
-		return bindHandleResponse(response, reqCtx)
+		if err = bindHandleResponse(response, ginCtx); err != nil {
+			ginCtx.Error(fmt.Errorf("response error: %w", err))
+		}
 	}
 }
 
-func bindHandleResponse(response Response, reqCtx fiber.Ctx) error {
+func bindHandleRequest[I any](ginCtx *gin.Context, tags []string, binders []binding.Binding) (*I, error) {
+	in := new(I)
+
+	if len(binders) == 0 {
+		binders = getBinders(ginCtx, tags)
+	}
+
+	for _, binder := range binders {
+		if err := ginCtx.ShouldBindWith(in, binder); err != nil {
+			return nil, fmt.Errorf("%s: %w", binder.Name(), err)
+		}
+	}
+
+	if funk.Contains(tags, "uri") {
+		if err := ginCtx.ShouldBindUri(in); err != nil {
+			return nil, fmt.Errorf("uri: %w", err)
+		}
+	}
+
+	return in, nil
+}
+
+func getBinders(ginCtx *gin.Context, tags []string) []binding.Binding {
+	binders := make([]binding.Binding, 0)
+
+	if binder := getContentTypeBinder(ginCtx); binder != nil {
+		binders = append(binders, binder)
+	}
+
+	binders = append(binders, getTagBinders(tags)...)
+
+	return funk.Uniq(binders)
+}
+
+func getContentTypeBinder(ginCtx *gin.Context) binding.Binding {
+	switch ginCtx.ContentType() {
+	case binding.MIMEJSON:
+		return binding.JSON
+	case binding.MIMEXML, binding.MIMEXML2:
+		return binding.XML
+	case binding.MIMEPROTOBUF:
+		return binding.ProtoBuf
+	case binding.MIMEMSGPACK, binding.MIMEMSGPACK2:
+		return binding.MsgPack
+	case binding.MIMEYAML, binding.MIMEYAML2:
+		return binding.YAML
+	case binding.MIMETOML:
+		return binding.TOML
+	case binding.MIMEMultipartPOSTForm:
+		return binding.FormMultipart
+	case binding.MIMEPOSTForm:
+		return binding.Form
+	}
+
+	return nil
+}
+
+func getTagBinders(tags []string) (binders []binding.Binding) {
+	for _, tag := range tags {
+		switch tag {
+		case "form":
+			binders = append(binders, binding.Form, binding.Query)
+		case "header":
+			binders = append(binders, binding.Header)
+		case "json":
+			binders = append(binders, binding.JSON)
+		case "yaml":
+			binders = append(binders, binding.YAML)
+		case "xml":
+			binders = append(binders, binding.XML)
+		case "protobuf":
+			binders = append(binders, binding.ProtoBuf)
+		case "msgpack":
+			binders = append(binders, binding.MsgPack)
+		case "toml":
+			binders = append(binders, binding.TOML)
+		case "plain":
+			binders = append(binders, binding.JSON)
+		}
+	}
+
+	return
+}
+
+func bindHandleResponse(response Response, ginCtx *gin.Context) error {
 	var err error
-	var size, statusCode int
+	var statusCode int
 	var header http.Header
 	var body []byte
 
@@ -67,16 +165,16 @@ func bindHandleResponse(response Response, reqCtx fiber.Ctx) error {
 
 	for key, values := range header {
 		for _, value := range values {
-			reqCtx.Set(key, value)
+			ginCtx.Header(key, value)
 		}
 	}
 
-	if size, err = reqCtx.Write(body); err != nil {
+	ginCtx.Status(statusCode)
+	ginCtx.Writer.WriteHeaderNow()
+
+	if _, err = ginCtx.Writer.Write(body); err != nil {
 		return fmt.Errorf("body write error: %w", err)
 	}
-
-	reqCtx.Status(statusCode)
-	reqCtx.Response().Header.SetContentLength(size)
 
 	return nil
 }

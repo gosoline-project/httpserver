@@ -2,10 +2,11 @@ package httpserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
-	"github.com/gofiber/fiber/v3"
+	"github.com/gin-gonic/gin"
 	"github.com/justtrackio/gosoline/pkg/cfg"
 	"github.com/justtrackio/gosoline/pkg/dx"
 	"github.com/justtrackio/gosoline/pkg/kernel"
@@ -21,7 +22,7 @@ type HttpServerHealthCheck struct {
 	kernel.EssentialStage
 
 	logger   log.Logger
-	app      *fiber.App
+	server   *http.Server
 	settings *HealthCheckSettings
 }
 
@@ -32,26 +33,32 @@ func NewHealthCheck() kernel.ModuleFactory {
 			return nil, fmt.Errorf("failed to unmarshal health check settings: %w", err)
 		}
 
-		app := fiber.New(fiber.Config{})
+		gin.SetMode(gin.ReleaseMode)
+		router := gin.New()
 
 		healthChecker, err := kernel.GetHealthChecker(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("can not get health checker: %w", err)
 		}
 
-		return NewHealthCheckWithInterfaces(logger, app, healthChecker, settings), nil
+		return NewHealthCheckWithInterfaces(logger, router, healthChecker, settings), nil
 	}
 }
 
-func NewHealthCheckWithInterfaces(logger log.Logger, app *fiber.App, healthChecker kernel.HealthChecker, settings *HealthCheckSettings) *HttpServerHealthCheck {
+func NewHealthCheckWithInterfaces(logger log.Logger, router *gin.Engine, healthChecker kernel.HealthChecker, settings *HealthCheckSettings) *HttpServerHealthCheck {
 	logger = logger.WithChannel("httpserver-health-check")
 
-	app.Use(LoggingMiddleware(logger, LoggingSettings{}))
-	app.Get(settings.Path, buildHealthCheckHandler(logger, healthChecker))
+	router.Use(LoggingMiddleware(logger, LoggingSettings{}))
+	router.GET(settings.Path, buildHealthCheckHandler(logger, healthChecker))
+
+	server := &http.Server{
+		Addr:    fmt.Sprintf(":%d", settings.Port),
+		Handler: router,
+	}
 
 	return &HttpServerHealthCheck{
 		logger:   logger,
-		app:      app,
+		server:   server,
 		settings: settings,
 	}
 }
@@ -59,9 +66,12 @@ func NewHealthCheckWithInterfaces(logger log.Logger, app *fiber.App, healthCheck
 func (a *HttpServerHealthCheck) Run(ctx context.Context) error {
 	go a.waitForStop(ctx)
 
-	addr := fmt.Sprintf(":%d", a.settings.Port)
-	if err := a.app.Listen(addr); err != nil {
-		return fmt.Errorf("server closed unexpected: %w", err)
+	err := a.server.ListenAndServe()
+
+	if !errors.Is(err, http.ErrServerClosed) {
+		a.logger.Error(ctx, "server check closed unexpected: %w", err)
+
+		return err
 	}
 
 	a.logger.Info(ctx, "leaving httpserver health check")
@@ -75,30 +85,29 @@ func (s *HttpServerHealthCheck) waitForStop(ctx context.Context) {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), s.settings.Timeout.Shutdown)
 	defer cancel()
 
-	s.logger.Info(ctx, "trying to gracefully shutdown httpserver health check")
+	s.logger.Info(shutdownCtx, "trying to gracefully shutdown httpserver health check")
 
-	if err := s.app.ShutdownWithContext(shutdownCtx); err != nil {
-		s.logger.Error(ctx, "server shutdown: %w", err)
+	if err := s.server.Shutdown(shutdownCtx); err != nil {
+		s.logger.Error(shutdownCtx, "server shutdown: %w", err)
 	}
 }
 
-func buildHealthCheckHandler(logger log.Logger, healthChecker kernel.HealthChecker) func(reqCtx fiber.Ctx) error {
-	return func(reqCtx fiber.Ctx) error {
+func buildHealthCheckHandler(logger log.Logger, healthChecker kernel.HealthChecker) func(c *gin.Context) {
+	return func(c *gin.Context) {
 		result := healthChecker()
 
 		if result.IsHealthy() {
-			reqCtx.Status(http.StatusOK)
-			reqCtx.JSON(map[string]any{})
+			c.JSON(http.StatusOK, gin.H{})
 
-			return nil
+			return
 		}
 
 		if result.Err() != nil {
-			ctx := reqCtx.Context()
-			logger.Error(ctx, "encountered an error during the health check: %w", result.Err())
+			ctx := c.Request.Context()
+			logger.Error(ctx, "encountered an error during the health check: %", result.Err())
 		}
 
-		resp := map[string]any{}
+		resp := gin.H{}
 		for _, module := range result.GetUnhealthy() {
 			if module.Err != nil {
 				resp[module.Name] = module.Err.Error()
@@ -107,9 +116,6 @@ func buildHealthCheckHandler(logger log.Logger, healthChecker kernel.HealthCheck
 			}
 		}
 
-		reqCtx.Status(http.StatusInternalServerError)
-		reqCtx.JSON(resp)
-
-		return nil
+		c.JSON(http.StatusInternalServerError, resp)
 	}
 }
