@@ -12,7 +12,7 @@ import (
 )
 
 func Bind[I any](handler func(ctx context.Context, input *I) (Response, error), binders ...binding.Binding) gin.HandlerFunc {
-	return BindR[I](func(ctx context.Context, req *http.Request, input *I) (Response, error) {
+	return BindR[I](func(ctx context.Context, _ *http.Request, input *I) (Response, error) {
 		return handler(ctx, input)
 	}, binders...)
 }
@@ -44,7 +44,7 @@ func BindR[I any](handler func(ctx context.Context, req *http.Request, input *I)
 }
 
 func BindN(handler func(ctx context.Context) (Response, error)) gin.HandlerFunc {
-	return BindNR(func(ctx context.Context, req *http.Request) (Response, error) {
+	return BindNR(func(ctx context.Context, _ *http.Request) (Response, error) {
 		return handler(ctx)
 	})
 }
@@ -62,6 +62,49 @@ func BindNR(handler func(ctx context.Context, req *http.Request) (Response, erro
 
 		if err = bindHandleResponse(response, ginCtx); err != nil {
 			ginCtx.Error(fmt.Errorf("response error: %w", err))
+		}
+	}
+}
+
+func BindSse[I any](handler func(ctx context.Context, input *I, writer SseWriter) error, binders ...binding.Binding) gin.HandlerFunc {
+	return BindSseR[I](func(ctx context.Context, _ *http.Request, input *I, writer SseWriter) error {
+		return handler(ctx, input, writer)
+	}, binders...)
+}
+
+func BindSseR[I any](handler func(ctx context.Context, req *http.Request, input *I, writer SseWriter) error, binders ...binding.Binding) gin.HandlerFunc {
+	tags := refl.GetTagNames(new(I))
+
+	return func(ginCtx *gin.Context) {
+		var err error
+		var input *I
+
+		if input, err = bindHandleRequest[I](ginCtx, tags, binders); err != nil {
+			ginCtx.Error(fmt.Errorf("bind error: %w", err))
+
+			return
+		}
+
+		writer := NewSseWriter(ginCtx.Writer)
+		if err = handler(ginCtx, ginCtx.Request, input, writer); err != nil {
+			ginCtx.Error(fmt.Errorf("handler error: %w", err))
+		}
+	}
+}
+
+func BindSseN(handler func(ctx context.Context, writer SseWriter) error) gin.HandlerFunc {
+	return BindSseNR(func(ctx context.Context, _ *http.Request, writer SseWriter) error {
+		return handler(ctx, writer)
+	})
+}
+
+func BindSseNR(handler func(ctx context.Context, req *http.Request, writer SseWriter) error, binders ...binding.Binding) gin.HandlerFunc {
+	return func(ginCtx *gin.Context) {
+		var err error
+
+		writer := NewSseWriter(ginCtx.Writer)
+		if err = handler(ginCtx, ginCtx.Request, writer); err != nil {
+			ginCtx.Error(fmt.Errorf("handler error: %w", err))
 		}
 	}
 }
