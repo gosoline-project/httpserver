@@ -32,7 +32,7 @@ func (d *Definition) getAbsolutePath() string {
 
 type Router struct {
 	basePath            string
-	registerFactories   []registerFactoryFunc
+	registerFactories   []RegisterFactoryFunc
 	middleware          []gin.HandlerFunc
 	middlewareFactories []MiddlewareFactory
 	routes              []Definition
@@ -84,7 +84,7 @@ func (d *Router) Handle(httpMethod, relativePath string, handlers ...gin.Handler
 	})
 }
 
-func (r *Router) HandleWith(registerFactory registerFactoryFunc) {
+func (r *Router) HandleWith(registerFactory RegisterFactoryFunc) {
 	r.registerFactories = append(r.registerFactories, registerFactory)
 }
 

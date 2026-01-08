@@ -9,10 +9,10 @@ import (
 )
 
 type HandlerFactory[H any] func(ctx context.Context, config cfg.Config, logger log.Logger) (*H, error)
-type registerFactoryFunc func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router) (func(router *Router), error)
-type registerFunc[H any] func(router *Router, handler *H)
+type RegisterFactoryFunc func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router) (func(router *Router), error)
+type RegisterFunc[H any] func(router *Router, handler *H)
 
-func With[H any](handlerFactory HandlerFactory[H], register registerFunc[H]) registerFactoryFunc {
+func With[H any](handlerFactory HandlerFactory[H], register RegisterFunc[H]) RegisterFactoryFunc {
 	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router) (func(router *Router), error) {
 		var err error
 		var handler *H

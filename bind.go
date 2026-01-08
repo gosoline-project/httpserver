@@ -25,7 +25,7 @@ func BindR[I any](handler func(ctx context.Context, req *http.Request, input *I)
 		var input *I
 		var response Response
 
-		if input, err = bindHandleRequest[I](ginCtx, tags, binders); err != nil {
+		if input, err = BindHandleRequest[I](ginCtx, tags, binders); err != nil {
 			ginCtx.Error(fmt.Errorf("bind error: %w", err))
 
 			return
@@ -37,7 +37,7 @@ func BindR[I any](handler func(ctx context.Context, req *http.Request, input *I)
 			return
 		}
 
-		if err = bindHandleResponse(response, ginCtx); err != nil {
+		if err = BindHandleResponse(response, ginCtx); err != nil {
 			ginCtx.Error(fmt.Errorf("response error: %w", err))
 		}
 	}
@@ -60,7 +60,7 @@ func BindNR(handler func(ctx context.Context, req *http.Request) (Response, erro
 			return
 		}
 
-		if err = bindHandleResponse(response, ginCtx); err != nil {
+		if err = BindHandleResponse(response, ginCtx); err != nil {
 			ginCtx.Error(fmt.Errorf("response error: %w", err))
 		}
 	}
@@ -79,7 +79,7 @@ func BindSseR[I any](handler func(ctx context.Context, req *http.Request, input 
 		var err error
 		var input *I
 
-		if input, err = bindHandleRequest[I](ginCtx, tags, binders); err != nil {
+		if input, err = BindHandleRequest[I](ginCtx, tags, binders); err != nil {
 			ginCtx.Error(fmt.Errorf("bind error: %w", err))
 
 			return
@@ -109,7 +109,7 @@ func BindSseNR(handler func(ctx context.Context, req *http.Request, writer SseWr
 	}
 }
 
-func bindHandleRequest[I any](ginCtx *gin.Context, tags []string, binders []binding.Binding) (*I, error) {
+func BindHandleRequest[I any](ginCtx *gin.Context, tags []string, binders []binding.Binding) (*I, error) {
 	in := new(I)
 
 	if len(binders) == 0 {
@@ -193,7 +193,7 @@ func getTagBinders(tags []string) (binders []binding.Binding) {
 	return
 }
 
-func bindHandleResponse(response Response, ginCtx *gin.Context) error {
+func BindHandleResponse(response Response, ginCtx *gin.Context) error {
 	var err error
 	var statusCode int
 	var header http.Header
