@@ -68,6 +68,7 @@ func NewServerWithSettings(ctx context.Context, name string, definer RouterFacto
 			err                            error
 			tracingInstrumentor            tracing.Instrumentor
 			definitionList                 []Definition
+			samplingMiddleware             gin.HandlerFunc
 			compressionMiddlewares         []gin.HandlerFunc
 			healthChecker                  kernel.HealthChecker
 			connectionLifeCycleInterceptor gin.HandlerFunc
@@ -75,6 +76,10 @@ func NewServerWithSettings(ctx context.Context, name string, definer RouterFacto
 
 		if tracingInstrumentor, err = tracing.ProvideInstrumentor(ctx, config, logger); err != nil {
 			return nil, fmt.Errorf("can not create tracingInstrumentor: %w", err)
+		}
+
+		if samplingMiddleware, err = SamplingMiddleware(ctx, config, logger); err != nil {
+			return nil, fmt.Errorf("could not create sampling middleware: %w", err)
 		}
 
 		metricMiddleware, setupMetricMiddleware := NewMetricMiddleware(name)
@@ -90,6 +95,7 @@ func NewServerWithSettings(ctx context.Context, name string, definer RouterFacto
 		router := gin.New()
 		router.ContextWithFallback = true
 		router.UseRawPath = settings.Router.UseRawPath
+		router.Use(samplingMiddleware)
 		router.Use(metricMiddleware)
 		router.Use(LoggingMiddleware(logger, settings.Logging))
 		router.Use(compressionMiddlewares...)

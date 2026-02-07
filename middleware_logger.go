@@ -14,6 +14,7 @@ import (
 	"github.com/justtrackio/gosoline/pkg/funk"
 	"github.com/justtrackio/gosoline/pkg/log"
 	"github.com/justtrackio/gosoline/pkg/reqctx"
+	"github.com/justtrackio/gosoline/pkg/validation"
 )
 
 type logCall struct {
@@ -32,22 +33,23 @@ func NewLoggingMiddlewareWithInterfaces(logger log.Logger, settings LoggingSetti
 	return func(ginCtx *gin.Context) {
 		start := clock.Now()
 
-		ctx := log.InitContext(ginCtx.Request.Context())
-		ctx = reqctx.New(ctx)
+		reqCtx := log.WithFingersCrossedScope(ginCtx.Request.Context())
+		reqCtx = log.InitContext(reqCtx)
+		reqCtx = reqctx.New(reqCtx)
 
 		if requestId := ginCtx.Request.Header.Get("X-Request-Id"); requestId != "" {
-			ctx = log.MutateGlobalContextFields(ctx, map[string]any{
+			reqCtx = log.MutateGlobalContextFields(reqCtx, map[string]any{
 				"request_id": requestId,
 			})
 		}
 
 		if sessionId := ginCtx.Request.Header.Get("X-Session-Id"); sessionId != "" {
-			ctx = log.MutateGlobalContextFields(ctx, map[string]any{
+			reqCtx = log.MutateGlobalContextFields(reqCtx, map[string]any{
 				"session_id": sessionId,
 			})
 		}
 
-		ginCtx.Request = ginCtx.Request.WithContext(ctx)
+		ginCtx.Request = ginCtx.Request.WithContext(reqCtx)
 
 		lp := newLogCall(logger, settings)
 		lp.prepare(ginCtx)
@@ -57,6 +59,10 @@ func NewLoggingMiddlewareWithInterfaces(logger log.Logger, settings LoggingSetti
 		requestTimeSeconds := clock.Since(start).Seconds()
 
 		lp.finalize(ginCtx, requestTimeSeconds)
+
+		if ginCtx.Writer.Status() >= http.StatusBadRequest {
+			log.FlushFingersCrossedScope(reqCtx)
+		}
 	}
 }
 
@@ -82,6 +88,15 @@ func (lc *logCall) prepare(ginCtx *gin.Context) {
 	lc.fields["request_referer"] = req.Referer()
 	lc.fields["request_user_agent"] = req.UserAgent()
 	lc.fields["scheme"] = req.URL.Scheme
+
+	headers := make(map[string]string)
+	for _, key := range lc.settings.RequestHeaders {
+		headers[key] = req.Header.Get(key)
+	}
+
+	if len(headers) > 0 {
+		lc.fields["request_headers"] = headers
+	}
 
 	if !lc.settings.RequestBody {
 		return
@@ -145,6 +160,8 @@ func (lc *logCall) finalize(ginCtx *gin.Context, requestTimeSecond float64) {
 			logger.Warn(ctx, "%s %s %s - bind error: %s", method, path, proto, e.Err.Error())
 		case e.IsType(gin.ErrorTypeRender):
 			logger.Warn(ctx, "%s %s %s - render error: %s", method, path, proto, e.Err.Error())
+		case validation.IsValidationError(e):
+			logger.Warn(ctx, "%s %s %s - validation error: %s", method, path, proto, e.Err.Error())
 		default:
 			logger.Error(ctx, "%s %s %s: %w", method, path, proto, e.Err)
 		}
