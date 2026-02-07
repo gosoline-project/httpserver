@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -66,13 +67,13 @@ func BindNR(handler func(ctx context.Context, req *http.Request) (Response, erro
 	}
 }
 
-func BindSse[I any](handler func(ctx context.Context, input *I, writer SseWriter) error, binders ...binding.Binding) gin.HandlerFunc {
-	return BindSseR[I](func(ctx context.Context, _ *http.Request, input *I, writer SseWriter) error {
+func BindSse[I any](handler func(ctx context.Context, input *I, writer *SseWriter) error, binders ...binding.Binding) gin.HandlerFunc {
+	return BindSseR[I](func(ctx context.Context, _ *http.Request, input *I, writer *SseWriter) error {
 		return handler(ctx, input, writer)
 	}, binders...)
 }
 
-func BindSseR[I any](handler func(ctx context.Context, req *http.Request, input *I, writer SseWriter) error, binders ...binding.Binding) gin.HandlerFunc {
+func BindSseR[I any](handler func(ctx context.Context, req *http.Request, input *I, writer *SseWriter) error, binders ...binding.Binding) gin.HandlerFunc {
 	tags := refl.GetTagNames(new(I))
 
 	return func(ginCtx *gin.Context) {
@@ -85,26 +86,38 @@ func BindSseR[I any](handler func(ctx context.Context, req *http.Request, input 
 			return
 		}
 
-		writer := NewSseWriter(ginCtx.Writer)
+		writer := NewSseWriter(ginCtx.Request.Context(), ginCtx.Writer)
 		if err = handler(ginCtx, ginCtx.Request, input, writer); err != nil {
-			ginCtx.Error(fmt.Errorf("handler error: %w", err))
+			// If client disconnected, this is a clean exit - no error logging
+			if errors.Is(err, ErrClientDisconnected) {
+				return
+			}
+			// Send error as an SSE event instead of letting ErrorMiddleware corrupt the stream
+			_ = writer.SendEvent(SseEvent{Event: "error", Data: err.Error()})
+			ginCtx.Abort()
 		}
 	}
 }
 
-func BindSseN(handler func(ctx context.Context, writer SseWriter) error) gin.HandlerFunc {
-	return BindSseNR(func(ctx context.Context, _ *http.Request, writer SseWriter) error {
+func BindSseN(handler func(ctx context.Context, writer *SseWriter) error) gin.HandlerFunc {
+	return BindSseNR(func(ctx context.Context, _ *http.Request, writer *SseWriter) error {
 		return handler(ctx, writer)
 	})
 }
 
-func BindSseNR(handler func(ctx context.Context, req *http.Request, writer SseWriter) error, binders ...binding.Binding) gin.HandlerFunc {
+func BindSseNR(handler func(ctx context.Context, req *http.Request, writer *SseWriter) error) gin.HandlerFunc {
 	return func(ginCtx *gin.Context) {
 		var err error
 
-		writer := NewSseWriter(ginCtx.Writer)
+		writer := NewSseWriter(ginCtx.Request.Context(), ginCtx.Writer)
 		if err = handler(ginCtx, ginCtx.Request, writer); err != nil {
-			ginCtx.Error(fmt.Errorf("handler error: %w", err))
+			// If client disconnected, this is a clean exit - no error logging
+			if errors.Is(err, ErrClientDisconnected) {
+				return
+			}
+			// Send error as an SSE event instead of letting ErrorMiddleware corrupt the stream
+			_ = writer.SendEvent(SseEvent{Event: "error", Data: err.Error()})
+			ginCtx.Abort()
 		}
 	}
 }
