@@ -31,6 +31,10 @@ func (s *SseWriterTestSuite) SetupTest() {
 	s.writer = httpserver.NewSseWriter(s.ctx, s.rec)
 }
 
+func (s *SseWriterTestSuite) TearDownTest() {
+	s.writer.Close()
+}
+
 func (s *SseWriterTestSuite) TestSend() {
 	err := s.writer.Send("hello world")
 	s.NoError(err)
@@ -105,6 +109,7 @@ func (s *SseWriterTestSuite) TestSendEvent_ClientDisconnected() {
 	ctx, cancel := context.WithCancel(context.Background())
 	rec := httptest.NewRecorder()
 	writer := httpserver.NewSseWriter(ctx, rec)
+	defer writer.Close()
 
 	// Cancel the context to simulate client disconnect
 	cancel()
@@ -147,7 +152,8 @@ func (s *SseWriterTestSuite) TestGzipDetection() {
 	rec.Header().Set("Content-Encoding", "gzip")
 	rec.Header().Set("Vary", "Accept-Encoding")
 
-	httpserver.NewSseWriter(s.ctx, rec)
+	writer := httpserver.NewSseWriter(s.ctx, rec)
+	defer writer.Close()
 
 	// Verify gzip headers are removed
 	s.Empty(rec.Header().Get("Content-Encoding"))
@@ -196,4 +202,14 @@ func (s *SseWriterTestSuite) TestBrowserEventSourceCompatibility() {
 	s.Contains(body, "id: msg-001\n")
 	s.Contains(body, "retry: 3000\n")
 	s.Contains(body, "data: ")
+}
+
+func (s *SseWriterTestSuite) TestHeartbeatsEnabledByDefault() {
+	rec := httptest.NewRecorder()
+	writer := httpserver.NewSseWriter(s.ctx, rec)
+	defer writer.Close()
+
+	time.Sleep(6 * time.Second)
+
+	s.Contains(rec.Body.String(), ": heartbeat\n\n")
 }

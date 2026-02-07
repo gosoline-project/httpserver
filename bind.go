@@ -87,11 +87,14 @@ func BindSseR[I any](handler func(ctx context.Context, req *http.Request, input 
 		}
 
 		writer := NewSseWriter(ginCtx.Request.Context(), ginCtx.Writer)
+		defer writer.Close()
+
 		if err = handler(ginCtx, ginCtx.Request, input, writer); err != nil {
 			// If client disconnected, this is a clean exit - no error logging
 			if errors.Is(err, ErrClientDisconnected) {
 				return
 			}
+
 			// Send error as an SSE event instead of letting ErrorMiddleware corrupt the stream
 			_ = writer.SendEvent(SseEvent{Event: "error", Data: err.Error()})
 			ginCtx.Abort()
@@ -110,6 +113,8 @@ func BindSseNR(handler func(ctx context.Context, req *http.Request, writer *SseW
 		var err error
 
 		writer := NewSseWriter(ginCtx.Request.Context(), ginCtx.Writer)
+		defer writer.Close()
+
 		if err = handler(ginCtx, ginCtx.Request, writer); err != nil {
 			// If client disconnected, this is a clean exit - no error logging
 			if errors.Is(err, ErrClientDisconnected) {

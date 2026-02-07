@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -42,9 +43,13 @@ type (
 	// SseWriter provides methods to send Server-Sent Events to a client.
 	SseWriter struct {
 		ctx    context.Context
+		cancel context.CancelFunc
 		writer SseResponseWriter
+		mu     sync.Mutex
 	}
 )
+
+const DefaultSseHeartbeatInterval = 5 * time.Second
 
 // NewSseWriter creates a new SSE writer that sends events to the provided response writer.
 // It sets the necessary SSE headers (Content-Type, Cache-Control, Connection).
@@ -74,10 +79,16 @@ func NewSseWriter(ctx context.Context, writer SseResponseWriter) *SseWriter {
 		// Properly exclude SSE paths from compression via middleware configuration.
 	}
 
-	return &SseWriter{
-		ctx:    ctx,
+	writerCtx, cancel := context.WithCancel(ctx)
+	sseWriter := &SseWriter{
+		ctx:    writerCtx,
+		cancel: cancel,
 		writer: writer,
 	}
+
+	go sseWriter.heartbeatLoop()
+
+	return sseWriter
 }
 
 // Send writes a simple data-only SSE event.
@@ -96,20 +107,6 @@ func (w *SseWriter) Send(data string) error {
 //
 // Returns ErrClientDisconnected if the client has disconnected.
 func (w *SseWriter) SendEvent(event SseEvent) error {
-	// Check if client has disconnected
-	if err := w.ctx.Err(); err != nil {
-		return ErrClientDisconnected
-	}
-
-	// Reset write deadline to prevent timeout on long-lived connections.
-	// Go's http.Server resets the write deadline on each Write(), but for idle SSE
-	// connections (no writes for >WriteTimeout), the connection would be killed.
-	// We reset it before each event to ensure the connection stays alive.
-	rc := http.NewResponseController(w.writer)
-	// Set deadline to "never" by using a far-future time.
-	// Alternatively, set it to time.Now().Add(<some duration>) for a per-event timeout.
-	_ = rc.SetWriteDeadline(time.Time{}) // no deadline
-
 	// Build the SSE event according to spec
 	var buf bytes.Buffer
 
@@ -137,8 +134,50 @@ func (w *SseWriter) SendEvent(event SseEvent) error {
 	// Empty line terminates the event
 	buf.WriteByte('\n')
 
-	// Write and flush
-	if _, err := w.writer.Write(buf.Bytes()); err != nil {
+	return w.write(buf.Bytes())
+}
+
+// Close stops any background heartbeats and releases resources.
+func (w *SseWriter) Close() {
+	if w.cancel != nil {
+		w.cancel()
+	}
+}
+
+func (w *SseWriter) heartbeatLoop() {
+	ticker := time.NewTicker(DefaultSseHeartbeatInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-w.ctx.Done():
+			return
+		case <-ticker.C:
+			if err := w.write([]byte(": heartbeat\n\n")); err != nil {
+				return
+			}
+		}
+	}
+}
+
+func (w *SseWriter) write(payload []byte) error {
+	if err := w.ctx.Err(); err != nil {
+		return ErrClientDisconnected
+	}
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	// Reset write deadline to prevent timeout on long-lived connections.
+	// Go's http.Server resets the write deadline on each Write(), but for idle SSE
+	// connections (no writes for >WriteTimeout), the connection would be killed.
+	// We reset it before each event to ensure the connection stays alive.
+	rc := http.NewResponseController(w.writer)
+	// Set deadline to "never" by using a far-future time.
+	// Alternatively, set it to time.Now().Add(<some duration>) for a per-event timeout.
+	_ = rc.SetWriteDeadline(time.Time{}) // no deadline
+
+	if _, err := w.writer.Write(payload); err != nil {
 		return err
 	}
 	w.writer.Flush()
