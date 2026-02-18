@@ -214,8 +214,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-go 1.24.0
-
-toolchain go1.24.6
+go 1.25.7
 
 tool github.com/vektra/mockery/v2
