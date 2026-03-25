@@ -27,19 +27,19 @@ func BindR[I any](handler func(ctx context.Context, req *http.Request, input *I)
 		var response Response
 
 		if input, err = BindHandleRequest[I](ginCtx, tags, binders); err != nil {
-			ginCtx.Error(fmt.Errorf("bind error: %w", err))
+			reportGinError(ginCtx, fmt.Errorf("bind error: %w", err))
 
 			return
 		}
 
 		if response, err = handler(ginCtx, ginCtx.Request, input); err != nil {
-			ginCtx.Error(fmt.Errorf("handler error: %w", err))
+			reportGinError(ginCtx, fmt.Errorf("handler error: %w", err))
 
 			return
 		}
 
 		if err = BindHandleResponse(response, ginCtx); err != nil {
-			ginCtx.Error(fmt.Errorf("response error: %w", err))
+			reportGinError(ginCtx, fmt.Errorf("response error: %w", err))
 		}
 	}
 }
@@ -56,13 +56,13 @@ func BindNR(handler func(ctx context.Context, req *http.Request) (Response, erro
 		var response Response
 
 		if response, err = handler(ginCtx, ginCtx.Request); err != nil {
-			ginCtx.Error(fmt.Errorf("handler error: %w", err))
+			reportGinError(ginCtx, fmt.Errorf("handler error: %w", err))
 
 			return
 		}
 
 		if err = BindHandleResponse(response, ginCtx); err != nil {
-			ginCtx.Error(fmt.Errorf("response error: %w", err))
+			reportGinError(ginCtx, fmt.Errorf("response error: %w", err))
 		}
 	}
 }
@@ -81,7 +81,7 @@ func BindSseR[I any](handler func(ctx context.Context, req *http.Request, input 
 		var input *I
 
 		if input, err = BindHandleRequest[I](ginCtx, tags, binders); err != nil {
-			ginCtx.Error(fmt.Errorf("bind error: %w", err))
+			reportGinError(ginCtx, fmt.Errorf("bind error: %w", err))
 
 			return
 		}
@@ -96,7 +96,10 @@ func BindSseR[I any](handler func(ctx context.Context, req *http.Request, input 
 			}
 
 			// Send error as an SSE event instead of letting ErrorMiddleware corrupt the stream
-			_ = writer.SendEvent(SseEvent{Event: "error", Data: err.Error()})
+			if sendErr := writer.SendEvent(SseEvent{Event: "error", Data: err.Error()}); sendErr != nil && !errors.Is(sendErr, ErrClientDisconnected) {
+				reportGinError(ginCtx, fmt.Errorf("sse error event: %w", sendErr))
+			}
+
 			ginCtx.Abort()
 		}
 	}
@@ -120,8 +123,12 @@ func BindSseNR(handler func(ctx context.Context, req *http.Request, writer *SseW
 			if errors.Is(err, ErrClientDisconnected) {
 				return
 			}
+
 			// Send error as an SSE event instead of letting ErrorMiddleware corrupt the stream
-			_ = writer.SendEvent(SseEvent{Event: "error", Data: err.Error()})
+			if sendErr := writer.SendEvent(SseEvent{Event: "error", Data: err.Error()}); sendErr != nil && !errors.Is(sendErr, ErrClientDisconnected) {
+				reportGinError(ginCtx, fmt.Errorf("sse error event: %w", sendErr))
+			}
+
 			ginCtx.Abort()
 		}
 	}
@@ -146,6 +153,10 @@ func BindHandleRequest[I any](ginCtx *gin.Context, tags []string, binders []bind
 		}
 	}
 
+	if err := modifyInput(ginCtx, in); err != nil {
+		return nil, err
+	}
+
 	return in, nil
 }
 
@@ -168,7 +179,7 @@ func getContentTypeBinder(ginCtx *gin.Context) binding.Binding {
 	case binding.MIMEXML, binding.MIMEXML2:
 		return binding.XML
 	case binding.MIMEPROTOBUF:
-		return binding.ProtoBuf
+		return protobufBinding
 	case binding.MIMEMSGPACK, binding.MIMEMSGPACK2:
 		return binding.MsgPack
 	case binding.MIMEYAML, binding.MIMEYAML2:
@@ -198,7 +209,7 @@ func getTagBinders(tags []string) (binders []binding.Binding) {
 		case "xml":
 			binders = append(binders, binding.XML)
 		case "protobuf":
-			binders = append(binders, binding.ProtoBuf)
+			binders = append(binders, protobufBinding)
 		case "msgpack":
 			binders = append(binders, binding.MsgPack)
 		case "toml":
@@ -245,6 +256,11 @@ func BindHandleResponse(response Response, ginCtx *gin.Context) error {
 	}
 
 	return nil
+}
+
+func reportGinError(ginCtx *gin.Context, err error) {
+	ginErr := ginCtx.Error(err)
+	ginErr.Type = gin.ErrorTypePrivate
 }
 
 func hasBodylessResponse(request *http.Request, statusCode int) bool {

@@ -8,9 +8,11 @@ import (
 	"github.com/justtrackio/gosoline/pkg/log"
 )
 
-type HandlerFactory[H any] func(ctx context.Context, config cfg.Config, logger log.Logger) (*H, error)
-type RegisterFactoryFunc func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router) (func(router *Router), error)
-type RegisterFunc[H any] func(router *Router, handler *H)
+type (
+	HandlerFactory[H any] func(ctx context.Context, config cfg.Config, logger log.Logger) (*H, error)
+	RegisterFactoryFunc   func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router) (func(router *Router), error)
+	RegisterFunc[H any]   func(router *Router, handler *H)
+)
 
 func With[H any](handlerFactory HandlerFactory[H], register RegisterFunc[H]) RegisterFactoryFunc {
 	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router) (func(router *Router), error) {

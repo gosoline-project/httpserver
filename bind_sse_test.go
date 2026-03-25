@@ -41,16 +41,18 @@ func (s *BindSseTestSuite) serveRequest(router *gin.Engine, method, path, body s
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
+
 	return rec
 }
 
 // serveRequestWithContext is a helper to execute a request with a custom context
 func (s *BindSseTestSuite) serveRequestWithContext(router *gin.Engine, method, path string, ctx context.Context) *httptest.ResponseRecorder {
-	req := httptest.NewRequest(method, path, nil)
+	req := httptest.NewRequest(method, path, http.NoBody)
 	req = req.WithContext(ctx)
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
+
 	return rec
 }
 
@@ -77,7 +79,10 @@ func (s *BindSseTestSuite) TestBindSse_HandlerError() {
 	router := gin.New()
 	router.POST("/sse", httpserver.BindSse(func(ctx context.Context, input *sseTestInput, writer *httpserver.SseWriter) error {
 		// Send one successful event
-		_ = writer.Send("before error")
+		if err := writer.Send("before error"); err != nil {
+			return err
+		}
+
 		// Then return an error
 		return errors.New("something went wrong")
 	}))
@@ -151,6 +156,7 @@ func (s *BindSseTestSuite) TestBindSseR_WithRequest() {
 	router.POST("/sse", httpserver.BindSseR(func(ctx context.Context, req *http.Request, input *sseTestInput, writer *httpserver.SseWriter) error {
 		// Access request headers
 		userAgent := req.Header.Get("User-Agent")
+
 		return writer.SendEvent(httpserver.SseEvent{
 			Event: "info",
 			Data:  userAgent,
@@ -170,8 +176,14 @@ func (s *BindSseTestSuite) TestBindSseR_WithRequest() {
 func (s *BindSseTestSuite) TestBindSseN_NoInput() {
 	router := gin.New()
 	router.GET("/events", httpserver.BindSseN(func(ctx context.Context, writer *httpserver.SseWriter) error {
-		_ = writer.Send("event1")
-		_ = writer.Send("event2")
+		if err := writer.Send("event1"); err != nil {
+			return err
+		}
+
+		if err := writer.Send("event2"); err != nil {
+			return err
+		}
+
 		return nil
 	}))
 
@@ -185,6 +197,7 @@ func (s *BindSseTestSuite) TestBindSseNR_NoInputWithRequest() {
 	router := gin.New()
 	router.GET("/stream", httpserver.BindSseNR(func(ctx context.Context, req *http.Request, writer *httpserver.SseWriter) error {
 		query := req.URL.Query().Get("filter")
+
 		return writer.SendEvent(httpserver.SseEvent{
 			Event: "filtered",
 			Data:  query,
@@ -202,24 +215,30 @@ func (s *BindSseTestSuite) TestBindSse_StructuredEvents() {
 	router := gin.New()
 	router.GET("/events", httpserver.BindSseN(func(ctx context.Context, writer *httpserver.SseWriter) error {
 		// Send various event types
-		_ = writer.SendEvent(httpserver.SseEvent{
+		if err := writer.SendEvent(httpserver.SseEvent{
 			Event: "start",
 			Data:  "session started",
 			Id:    "1",
-		})
+		}); err != nil {
+			return err
+		}
 
-		_ = writer.SendEvent(httpserver.SseEvent{
+		if err := writer.SendEvent(httpserver.SseEvent{
 			Event: "update",
 			Data:  "processing",
 			Id:    "2",
-		})
+		}); err != nil {
+			return err
+		}
 
-		_ = writer.SendEvent(httpserver.SseEvent{
+		if err := writer.SendEvent(httpserver.SseEvent{
 			Event: "complete",
 			Data:  "finished",
 			Id:    "3",
 			Retry: 5000,
-		})
+		}); err != nil {
+			return err
+		}
 
 		return nil
 	}))
@@ -235,4 +254,3 @@ func (s *BindSseTestSuite) TestBindSse_StructuredEvents() {
 	s.Contains(body, "id: 3\n")
 	s.Contains(body, "retry: 5000\n")
 }
-

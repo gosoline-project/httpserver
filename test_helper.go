@@ -30,7 +30,7 @@ func HttpTest[Body HttpBody](method, path, requestPath string, body Body, handle
 		bodyReader = bytes.NewReader(value)
 	}
 
-	request, _ := http.NewRequest(method, requestPath, bodyReader)
+	request := httptest.NewRequest(method, requestPath, bodyReader)
 	for _, opt := range requestOptions {
 		opt(request)
 	}

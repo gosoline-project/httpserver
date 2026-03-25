@@ -11,8 +11,10 @@ import (
 	"github.com/justtrackio/gosoline/pkg/log"
 )
 
-type RouterFactory func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router) error
-type MiddlewareFactory func(ctx context.Context, config cfg.Config, logger log.Logger) (gin.HandlerFunc, error)
+type (
+	RouterFactory     func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router) error
+	MiddlewareFactory func(ctx context.Context, config cfg.Config, logger log.Logger) (gin.HandlerFunc, error)
+)
 
 type Definition struct {
 	group        *Router

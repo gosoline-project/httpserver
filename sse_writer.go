@@ -11,10 +11,8 @@ import (
 	"time"
 )
 
-var (
-	// ErrClientDisconnected is returned when the client has disconnected.
-	ErrClientDisconnected = errors.New("sse: client disconnected")
-)
+// ErrClientDisconnected is returned when the client has disconnected.
+var ErrClientDisconnected = errors.New("sse: client disconnected")
 
 type (
 	// SseEvent represents a Server-Sent Event with optional fields.
@@ -175,7 +173,9 @@ func (w *SseWriter) write(payload []byte) error {
 	rc := http.NewResponseController(w.writer)
 	// Set deadline to "never" by using a far-future time.
 	// Alternatively, set it to time.Now().Add(<some duration>) for a per-event timeout.
-	_ = rc.SetWriteDeadline(time.Time{}) // no deadline
+	if err := rc.SetWriteDeadline(time.Time{}); err != nil && !errors.Is(err, http.ErrNotSupported) {
+		return err
+	}
 
 	if _, err := w.writer.Write(payload); err != nil {
 		return err

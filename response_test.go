@@ -90,11 +90,12 @@ func TestResponseCases(t *testing.T) {
 		b, err := resp.Body()
 		assert.NoError(t, err)
 
-		if tc.expectBody == "" {
+		switch {
+		case tc.expectBody == "":
 			assert.Equal(t, "", string(b))
-		} else if resp.Header().Get("Content-Type") == "application/json; charset=utf-8" {
+		case resp.Header().Get("Content-Type") == "application/json; charset=utf-8":
 			assert.JSONEq(t, tc.expectBody, string(b))
-		} else {
+		default:
 			assert.Equal(t, tc.expectBody, string(b))
 		}
 		assert.Equal(t, tc.expectStatus, resp.StatusCode())
