@@ -219,9 +219,12 @@ func BindHandleResponse(response Response, ginCtx *gin.Context) error {
 
 	statusCode = response.StatusCode()
 	header = response.Header()
+	bodyless := hasBodylessResponse(ginCtx.Request, statusCode)
 
-	if body, err = response.Body(); err != nil {
-		return fmt.Errorf("body read error: %w", err)
+	if !bodyless {
+		if body, err = response.Body(); err != nil {
+			return fmt.Errorf("body read error: %w", err)
+		}
 	}
 
 	for key, values := range header {
@@ -233,9 +236,21 @@ func BindHandleResponse(response Response, ginCtx *gin.Context) error {
 	ginCtx.Status(statusCode)
 	ginCtx.Writer.WriteHeaderNow()
 
+	if bodyless {
+		return nil
+	}
+
 	if _, err = ginCtx.Writer.Write(body); err != nil {
 		return fmt.Errorf("body write error: %w", err)
 	}
 
 	return nil
+}
+
+func hasBodylessResponse(request *http.Request, statusCode int) bool {
+	if request != nil && request.Method == http.MethodHead {
+		return true
+	}
+
+	return statusCode >= 100 && statusCode < 200 || statusCode == http.StatusNoContent || statusCode == http.StatusNotModified
 }

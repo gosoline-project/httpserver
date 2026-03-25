@@ -44,15 +44,19 @@ func (j response) StatusCode() int {
 }
 
 func NewStatusResponse(statusCode int, options ...ResponseOption) *response {
-	return NewResponse(WithStatusCode(statusCode))
+	responseOptions := append([]ResponseOption{WithStatusCode(statusCode)}, options...)
+
+	return NewResponse(responseOptions...)
 }
 
 func NewTextResponse(text string, options ...ResponseOption) *response {
-	return NewResponse(
+	responseOptions := append([]ResponseOption{
 		WithBody([]byte(text)),
 		WithHeader("Content-Type", "text/plain; charset=utf-8"),
 		WithStatusCode(http.StatusOK),
-	)
+	}, options...)
+
+	return NewResponse(responseOptions...)
 }
 
 type jsonResponse[T any] struct {

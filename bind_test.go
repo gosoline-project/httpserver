@@ -2,6 +2,7 @@ package httpserver_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -36,6 +37,49 @@ type bindHeaderInput struct {
 type bindFormInput struct {
 	Name  string `form:"name"`
 	Email string `form:"email"`
+}
+
+type trackingResponse struct {
+	statusCode int
+	header     http.Header
+	body       []byte
+	bodyCalled bool
+	bodyErr    error
+}
+
+func (r *trackingResponse) Body() ([]byte, error) {
+	r.bodyCalled = true
+
+	if r.bodyErr != nil {
+		return nil, r.bodyErr
+	}
+
+	return r.body, nil
+}
+
+func (r *trackingResponse) Header() http.Header {
+	return r.header
+}
+
+func (r *trackingResponse) StatusCode() int {
+	return r.statusCode
+}
+
+type failOnWriteResponseWriter struct {
+	gin.ResponseWriter
+	writeCalls int
+}
+
+func (w *failOnWriteResponseWriter) Write(p []byte) (int, error) {
+	w.writeCalls++
+
+	return 0, errors.New("write should not be called")
+}
+
+func (w *failOnWriteResponseWriter) WriteString(s string) (int, error) {
+	w.writeCalls++
+
+	return 0, errors.New("write should not be called")
 }
 
 func newTestRouter(register func(r *gin.Engine)) *gin.Engine {
@@ -143,6 +187,30 @@ func TestBindCases(t *testing.T) {
 			expectedBody: ``,
 		},
 		{
+			name: "bindN not modified",
+			register: func(r *gin.Engine) {
+				r.GET("/not-modified", httpserver.BindN(func(ctx context.Context) (httpserver.Response, error) {
+					return httpserver.NewStatusResponse(http.StatusNotModified), nil
+				}))
+			},
+			method:       http.MethodGet,
+			path:         "/not-modified",
+			expectedCode: http.StatusNotModified,
+			expectedBody: ``,
+		},
+		{
+			name: "bindN head request has no body",
+			register: func(r *gin.Engine) {
+				r.HEAD("/head", httpserver.BindN(func(ctx context.Context) (httpserver.Response, error) {
+					return httpserver.NewTextResponse("head body"), nil
+				}))
+			},
+			method:       http.MethodHead,
+			path:         "/head",
+			expectedCode: http.StatusOK,
+			expectedBody: ``,
+		},
+		{
 			name: "query success",
 			register: func(r *gin.Engine) {
 				r.GET("/search", httpserver.Bind(func(ctx context.Context, input *bindQueryInput) (httpserver.Response, error) {
@@ -220,6 +288,56 @@ func TestBindCases(t *testing.T) {
 			if tc.expectedBody != "" {
 				assert.JSONEq(t, tc.expectedBody, recorder.Body.String())
 			}
+		})
+	}
+}
+
+func TestBindHandleResponseSkipsBodyHandlingForBodylessResponses(t *testing.T) {
+	cases := []struct {
+		name       string
+		method     string
+		statusCode int
+	}{
+		{
+			name:       "204 no content",
+			method:     http.MethodGet,
+			statusCode: http.StatusNoContent,
+		},
+		{
+			name:       "304 not modified",
+			method:     http.MethodGet,
+			statusCode: http.StatusNotModified,
+		},
+		{
+			name:       "head request",
+			method:     http.MethodHead,
+			statusCode: http.StatusOK,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder := httptest.NewRecorder()
+			ginCtx, _ := gin.CreateTestContext(recorder)
+			ginCtx.Request = httptest.NewRequest(tc.method, "/bodyless", http.NoBody)
+
+			writer := &failOnWriteResponseWriter{ResponseWriter: ginCtx.Writer}
+			ginCtx.Writer = writer
+
+			response := &trackingResponse{
+				statusCode: tc.statusCode,
+				header:     http.Header{"X-Test": []string{"set"}},
+				body:       []byte("should not be used"),
+				bodyErr:    errors.New("body should not be read"),
+			}
+
+			err := httpserver.BindHandleResponse(response, ginCtx)
+			assert.NoError(t, err)
+			assert.False(t, response.bodyCalled)
+			assert.Equal(t, 0, writer.writeCalls)
+			assert.Equal(t, tc.statusCode, recorder.Code)
+			assert.Empty(t, recorder.Body.String())
+			assert.Equal(t, "set", recorder.Header().Get("X-Test"))
 		})
 	}
 }
