@@ -43,7 +43,7 @@ func (s *errorMiddlewareTestSuite) serveErrorMiddlewareRequest(err error) *httpt
 	router := gin.New()
 	router.Use(httpserver.ErrorMiddleware())
 	router.GET("/error", func(c *gin.Context) {
-		c.Error(err)
+		require.NotNil(s.T(), c.Error(err))
 	})
 
 	recorder := httptest.NewRecorder()

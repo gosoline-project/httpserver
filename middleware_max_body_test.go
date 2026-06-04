@@ -16,8 +16,10 @@ import (
 )
 
 func readBodyHandler(c *gin.Context) {
-	body, err := io.ReadAll(c.Request.Body)
-	if err != nil {
+	var err error
+	var body []byte
+
+	if body, err = io.ReadAll(c.Request.Body); err != nil {
 		c.JSON(http.StatusRequestEntityTooLarge, gin.H{"err": err.Error()})
 
 		return
@@ -92,9 +94,11 @@ func TestMaxBodySizeMiddleware_GzipBodyExceedsDecompressedLimit(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
+		var err error
+		var reader io.ReadCloser
+
 		if c.GetHeader("Content-Encoding") == "gzip" {
-			reader, _, err := httpserver.NewGZipBodyReader(c.Request.Body)
-			if err != nil {
+			if reader, _, err = httpserver.NewGZipBodyReader(c.Request.Body); err != nil {
 				c.AbortWithStatus(http.StatusBadRequest)
 
 				return

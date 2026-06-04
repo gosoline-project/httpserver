@@ -19,7 +19,7 @@ func ErrorMiddleware() gin.HandlerFunc {
 		response := GetErrorHandler()(statusCode, err)
 
 		if err = BindHandleResponse(response, c); err != nil {
-			_ = c.Error(fmt.Errorf("error response error: %w", err))
+			c.Errors = append(c.Errors, &gin.Error{Err: fmt.Errorf("error response error: %w", err), Type: gin.ErrorTypePrivate})
 		}
 	}
 }
