@@ -213,6 +213,10 @@ func (s *HttpServer) waitForStop(ctx context.Context) error {
 }
 
 func (s *HttpServer) GetPort() (*int, error) {
+	var err error
+	var portStr string
+	var port int
+
 	if s == nil {
 		return nil, errors.New("httpserver is nil, module is not yet running")
 	}
@@ -222,13 +226,11 @@ func (s *HttpServer) GetPort() (*int, error) {
 	}
 
 	address := s.listener.Addr().String()
-	_, portStr, err := net.SplitHostPort(address)
-	if err != nil {
+	if _, portStr, err = net.SplitHostPort(address); err != nil {
 		return nil, fmt.Errorf("could not get port from address %s: %w", address, err)
 	}
 
-	port, err := strconv.Atoi(portStr)
-	if err != nil {
+	if port, err = strconv.Atoi(portStr); err != nil {
 		return nil, fmt.Errorf("can not convert port string to int: %w", err)
 	}
 

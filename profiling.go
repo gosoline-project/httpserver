@@ -73,8 +73,7 @@ func (p *Profiling) Run(ctx context.Context) error {
 
 func (p *Profiling) waitForStop(ctx context.Context) {
 	<-ctx.Done()
-	err := p.server.Close()
-	if err != nil {
+	if err := p.server.Close(); err != nil {
 		p.logger.Error(ctx, "profiling api server close", err)
 	}
 }

@@ -107,8 +107,10 @@ func runTestCaseHttpserver(s suite.TestingSuite, testCase func(suite suite.Testi
 
 		extraOptions := []suite.Option{
 			suite.WithModule("api", func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
-				module, err := NewServer("default", routerFactory)(ctx, config, logger)
-				if err != nil {
+				var err error
+				var module kernel.Module
+
+				if module, err = NewServer("default", routerFactory)(ctx, config, logger); err != nil {
 					return nil, fmt.Errorf("failed to create test http server: %w", err)
 				}
 
@@ -126,8 +128,10 @@ func runTestCaseHttpserver(s suite.TestingSuite, testCase func(suite suite.Testi
 		}
 
 		suite.RunTestCaseApplication(t, s, suiteConf, environment, func(app suite.AppUnderTest) {
-			port, err := server.GetPort()
-			if err != nil {
+			var err error
+			var port *int
+
+			if port, err = server.GetPort(); err != nil {
 				assert.FailNow(t, err.Error(), "can not get port of server")
 
 				return

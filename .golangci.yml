@@ -22,10 +22,6 @@ formatters:
   enable:
     - gofumpt
 
-  exclusions:
-    paths:
-      - examples/
-
 linters:
   default: none
   enable:
@@ -37,6 +33,7 @@ linters:
     - gocritic # Provides diagnostics that check for bugs, performance and style issues.
     - godox # Tool for detection of FIXME, TODO and other comment keywords.
     - govet # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string.
+    - iferrinline # Flags `err := foo()` followed by `if err != nil` that can be inlined into the if-init clause.
     - ineffassign # Detects when assignments to existing variables are not used.
     - lll # Reports long lines.
     - misspell # Finds commonly misspelled English words in comments.
@@ -50,8 +47,6 @@ linters:
     - whitespace # Whitespace is a linter that checks for unnecessary newlines at the start and end of functions, if, for, etc.
 
   exclusions:
-    paths:
-      - examples/
     rules:
       - linters:
           - dogsled
@@ -60,6 +55,12 @@ linters:
         path: _test\.go
 
   settings:
+    custom:
+      iferrinline:
+        type: module
+        description: reports err assignments followed by `if err != nil` that can be inlined
+        original-url: github.com/justtrackio/go-linters
+
     errcheck:
       check-type-assertions: false
       check-blank: true

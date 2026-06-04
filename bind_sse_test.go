@@ -122,8 +122,7 @@ func (s *BindSseTestSuite) TestBindSse_ClientDisconnect() {
 	router := gin.New()
 	router.GET("/sse", httpserver.BindSseN(func(ctx context.Context, writer *httpserver.SseWriter) error {
 		// Send one successful event
-		err := writer.Send("event 1")
-		if err != nil {
+		if err := writer.Send("event 1"); err != nil {
 			return err
 		}
 

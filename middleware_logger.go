@@ -75,6 +75,9 @@ func newLogCall(logger log.Logger, settings LoggingSettings) *logCall {
 }
 
 func (lc *logCall) prepare(ginCtx *gin.Context) {
+	var err error
+	var buf []byte
+
 	req := ginCtx.Request
 
 	lc.fields["bytes"] = ginCtx.Writer.Size()
@@ -102,8 +105,7 @@ func (lc *logCall) prepare(ginCtx *gin.Context) {
 		return
 	}
 
-	buf, err := io.ReadAll(req.Body)
-	if err != nil {
+	if buf, err = io.ReadAll(req.Body); err != nil {
 		lc.logger.Warn(req.Context(), "can not read request body: %s", err.Error())
 
 		return

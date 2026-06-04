@@ -13,7 +13,10 @@ func main() {
 	httpserver.RunDefaultServer(func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
 		router.GET("/hello/:name", func(ginCtx *gin.Context) {
 			name := ginCtx.Param("name")
-			ginCtx.Writer.WriteString("Hello, " + name)
+			if _, err := ginCtx.Writer.WriteString("Hello, " + name); err != nil {
+				ginErr := ginCtx.Error(err)
+				ginErr.Type = gin.ErrorTypePrivate
+			}
 		})
 
 		return nil

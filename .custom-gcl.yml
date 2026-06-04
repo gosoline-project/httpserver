@@ -1,0 +1,6 @@
+version: v2.10.1
+name: custom-gcl
+destination: ./bin
+plugins:
+  - module: github.com/justtrackio/go-linters
+    version: v0.2.1

@@ -28,6 +28,9 @@ type HttpServerHealthCheck struct {
 
 func NewHealthCheck() kernel.ModuleFactory {
 	return func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
+		var err error
+		var healthChecker kernel.HealthChecker
+
 		settings := &HealthCheckSettings{}
 		if err := config.UnmarshalKey("httpserver.health-check", settings); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal health check settings: %w", err)
@@ -36,8 +39,7 @@ func NewHealthCheck() kernel.ModuleFactory {
 		gin.SetMode(gin.ReleaseMode)
 		router := gin.New()
 
-		healthChecker, err := kernel.GetHealthChecker(ctx)
-		if err != nil {
+		if healthChecker, err = kernel.GetHealthChecker(ctx); err != nil {
 			return nil, fmt.Errorf("can not get health checker: %w", err)
 		}
 

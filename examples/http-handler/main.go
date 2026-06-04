@@ -14,12 +14,18 @@ import (
 func main() {
 	httpserver.RunDefaultServer(func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
 		router.GET("/bla", func(ctx *gin.Context) {
-			ctx.Writer.WriteString("bla")
+			if _, err := ctx.Writer.WriteString("bla"); err != nil {
+				ginErr := ctx.Error(err)
+				ginErr.Type = gin.ErrorTypePrivate
+			}
 		})
 
 		grp := router.Group("grp")
 		grp.GET("/bla", func(ctx *gin.Context) {
-			ctx.Writer.WriteString("grouped bla")
+			if _, err := ctx.Writer.WriteString("grouped bla"); err != nil {
+				ginErr := ctx.Error(err)
+				ginErr.Type = gin.ErrorTypePrivate
+			}
 		})
 
 		router.GET("/blocking", func(ctx *gin.Context) {
@@ -32,7 +38,10 @@ func main() {
 				logger.Info(ctx, "timer done")
 			}
 
-			ctx.Writer.WriteString("done")
+			if _, err := ctx.Writer.WriteString("done"); err != nil {
+				ginErr := ctx.Error(err)
+				ginErr.Type = gin.ErrorTypePrivate
+			}
 		})
 
 		return nil

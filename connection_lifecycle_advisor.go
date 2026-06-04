@@ -125,8 +125,10 @@ func (noopConnectionLifeCycleAdvisor) ShouldCloseConnection(_ string, _ http.Hea
 // controls closing of connections based on the ConnectionLifeCycleAdvisor.
 func ProvideConnectionLifeCycleInterceptor(ctx context.Context, config cfg.Config, logger log.Logger, serverName string) (gin.HandlerFunc, error) {
 	return appctx.Provide(ctx, connectionLifeCycleKey(serverName+"-interceptor"), func() (gin.HandlerFunc, error) {
-		connectionLifeCycleAdvisor, err := ProvideConnectionLifeCycleAdvisor(ctx, config, logger, serverName)
-		if err != nil {
+		var err error
+		var connectionLifeCycleAdvisor ConnectionLifeCycleAdvisor
+
+		if connectionLifeCycleAdvisor, err = ProvideConnectionLifeCycleAdvisor(ctx, config, logger, serverName); err != nil {
 			return nil, err
 		}
 

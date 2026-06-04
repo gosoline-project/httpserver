@@ -3,6 +3,7 @@ package httpserver
 import (
 	"compress/gzip"
 	"fmt"
+	"io"
 	"strconv"
 
 	ginGzip "github.com/gin-contrib/gzip"
@@ -10,13 +11,15 @@ import (
 )
 
 func configureCompression(settings CompressionSettings) ([]gin.HandlerFunc, error) {
+	var err error
+	var level int
+
 	middlewares := make([]gin.HandlerFunc, 0)
 
 	// we always record the request size
 	middlewares = append(middlewares, recordRequestSize)
 
-	level, err := parseLevel(settings.Level)
-	if err != nil {
+	if level, err = parseLevel(settings.Level); err != nil {
 		return nil, err
 	}
 
@@ -71,8 +74,11 @@ func parseLevel(level string) (int, error) {
 }
 
 func decompressionFn(c *gin.Context) {
-	gzipReader, readUncompressedBytes, err := NewGZipBodyReader(c.Request.Body)
-	if err != nil {
+	var err error
+	var gzipReader io.ReadCloser
+	var readUncompressedBytes *int
+
+	if gzipReader, readUncompressedBytes, err = NewGZipBodyReader(c.Request.Body); err != nil {
 		// the body is not a proper gzip encoded body, so don't do anything
 		// the client most likely set the wrong content encoding on the message
 		return

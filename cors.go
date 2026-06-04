@@ -10,18 +10,22 @@ import (
 )
 
 func Cors(config cfg.Config) (gin.HandlerFunc, error) {
-	allowedOriginPattern, err := config.GetString("api_cors_allowed_origin_pattern")
-	if err != nil {
+	var err error
+	var allowedOriginPattern string
+	var allowedHeaders []string
+	var allowedMethods []string
+
+	if allowedOriginPattern, err = config.GetString("api_cors_allowed_origin_pattern"); err != nil {
 		return nil, err
 	}
+
 	validOrigin := regexp.MustCompile(allowedOriginPattern)
 
-	allowedHeaders, err := config.GetStringSlice("api_cors_allowed_headers")
-	if err != nil {
+	if allowedHeaders, err = config.GetStringSlice("api_cors_allowed_headers"); err != nil {
 		return nil, err
 	}
-	allowedMethods, err := config.GetStringSlice("api_cors_allowed_methods")
-	if err != nil {
+
+	if allowedMethods, err = config.GetStringSlice("api_cors_allowed_methods"); err != nil {
 		return nil, err
 	}
 

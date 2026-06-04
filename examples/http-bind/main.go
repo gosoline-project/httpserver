@@ -25,8 +25,10 @@ type InputA struct {
 	Id   int    `json:"id"`
 	Name string `json:"name"`
 }
-type InputB string
-type Handler struct{}
+type (
+	InputB  string
+	Handler struct{}
+)
 
 func NewHandler(ctx context.Context, config cfg.Config, logger log.Logger) (*Handler, error) {
 	return &Handler{}, nil
