@@ -19,7 +19,7 @@ func Cors(config cfg.Config) (gin.HandlerFunc, error) {
 		return nil, err
 	}
 
-	validOrigin := regexp.MustCompile(allowedOriginPattern)
+	validOrigin := regexp.MustCompile("^(?:" + allowedOriginPattern + ")$")
 
 	if allowedHeaders, err = config.GetStringSlice("api_cors_allowed_headers"); err != nil {
 		return nil, err
