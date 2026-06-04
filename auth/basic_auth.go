@@ -27,13 +27,13 @@ type basicAuthAuthenticator struct {
 func NewBasicAuthHandler(config cfg.Config, logger log.Logger, name string) (gin.HandlerFunc, error) {
 	var err error
 	var auth Authenticator
-	var appId cfg.AppId
+	var appId cfg.Identity
 
 	if auth, err = NewBasicAuthAuthenticator(config, logger, name); err != nil {
 		return nil, fmt.Errorf("can not create basicAuthAuthenticator: %w", err)
 	}
 
-	if appId, err = cfg.GetAppIdFromConfig(config); err != nil {
+	if appId, err = cfg.GetAppIdentity(config); err != nil {
 		return nil, fmt.Errorf("can not get app id: %w", err)
 	}
 
@@ -48,7 +48,7 @@ func NewBasicAuthHandler(config cfg.Config, logger log.Logger, name string) (gin
 			err = fmt.Errorf("the user credentials weren't valid nor was there an error")
 		}
 
-		ginCtx.Header("www-authenticate", fmt.Sprintf("Basic realm=%q", appId.Application))
+		ginCtx.Header("www-authenticate", fmt.Sprintf("Basic realm=%q", appId.Name))
 		ginCtx.JSON(http.StatusUnauthorized, gin.H{"err": err.Error()})
 		ginCtx.Abort()
 	}, nil
