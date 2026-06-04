@@ -1,7 +1,7 @@
 package httpserver
 
 import (
-	"net/http"
+	"fmt"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,6 +15,11 @@ func ErrorMiddleware() gin.HandlerFunc {
 		}
 
 		err := c.Errors.Last().Err
-		c.JSON(http.StatusInternalServerError, gin.H{"err": err.Error()})
+		statusCode := GetErrorStatusCode(err)
+		response := GetErrorHandler()(statusCode, err)
+
+		if err = BindHandleResponse(response, c); err != nil {
+			_ = c.Error(fmt.Errorf("error response error: %w", err))
+		}
 	}
 }

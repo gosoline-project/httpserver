@@ -129,7 +129,7 @@ func TestBindCases(t *testing.T) {
 			path:         "/json",
 			body:         `{"name":`,
 			headers:      map[string]string{"Content-Type": "application/json"},
-			expectedCode: http.StatusInternalServerError,
+			expectedCode: http.StatusBadRequest,
 			expectedBody: `{"err": "bind error: json: unexpected EOF"}`,
 		},
 		{

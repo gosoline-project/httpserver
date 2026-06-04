@@ -27,7 +27,7 @@ func BindR[I any](handler func(ctx context.Context, req *http.Request, input *I)
 		var response Response
 
 		if input, err = BindHandleRequest[I](ginCtx, tags, binders); err != nil {
-			reportGinError(ginCtx, fmt.Errorf("bind error: %w", err))
+			reportGinError(ginCtx, NewErrorWithStatus(http.StatusBadRequest, fmt.Errorf("bind error: %w", err)))
 
 			return
 		}
@@ -81,7 +81,7 @@ func BindSseR[I any](handler func(ctx context.Context, req *http.Request, input 
 		var input *I
 
 		if input, err = BindHandleRequest[I](ginCtx, tags, binders); err != nil {
-			reportGinError(ginCtx, fmt.Errorf("bind error: %w", err))
+			reportGinError(ginCtx, NewErrorWithStatus(http.StatusBadRequest, fmt.Errorf("bind error: %w", err)))
 
 			return
 		}

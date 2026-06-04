@@ -114,7 +114,7 @@ func (s *BindSseTestSuite) TestBindSse_BindingError() {
 	})
 
 	// Should return normal JSON error response (headers not committed yet)
-	s.Equal(http.StatusInternalServerError, rec.Code)
+	s.Equal(http.StatusBadRequest, rec.Code)
 	s.Contains(rec.Body.String(), "bind error")
 }
 
