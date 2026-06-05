@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gosoline-project/httpserver"
 	"github.com/justtrackio/gosoline/pkg/clock"
-	"github.com/justtrackio/gosoline/pkg/httpserver"
 	"github.com/stretchr/testify/suite"
 )
 

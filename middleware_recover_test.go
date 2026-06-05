@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/justtrackio/gosoline/pkg/httpserver"
+	"github.com/gosoline-project/httpserver"
 	logMocks "github.com/justtrackio/gosoline/pkg/log/mocks"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sys/unix"
@@ -69,7 +69,7 @@ func TestRecoveryWithSentryCaseResponseBodyWriterAndConnectionErrors(t *testing.
 	r := gin.New()
 	r.Use(httpserver.RecoveryWithSentry(loggerMock))
 	r.Use(func(_ *gin.Context) {
-		err := httpserver.ResponseBodyWriterError{Err: unix.EPIPE}
+		err := unix.EPIPE
 		panic(err)
 	})
 
@@ -95,7 +95,7 @@ func TestRecoveryWithSentryCaseResponseBodyWriterErrorButNotConnectionError(t *t
 	r := gin.New()
 	r.Use(httpserver.RecoveryWithSentry(loggerMock))
 	r.Use(func(_ *gin.Context) {
-		err := httpserver.ResponseBodyWriterError{Err: errors.New("an error")}
+		err := errors.New("an error")
 		panic(err)
 	})
 

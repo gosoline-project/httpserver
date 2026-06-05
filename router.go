@@ -3,11 +3,12 @@ package httpserver
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/justtrackio/gosoline/pkg/cfg"
-	"github.com/justtrackio/gosoline/pkg/http"
+
 	"github.com/justtrackio/gosoline/pkg/log"
 )
 
@@ -91,27 +92,27 @@ func (r *Router) HandleWith(registerFactory RegisterFactoryFunc) {
 }
 
 func (d *Router) PATCH(relativePath string, handlers ...gin.HandlerFunc) {
-	d.Handle(http.PatchRequest, relativePath, handlers...)
+	d.Handle(http.MethodPatch, relativePath, handlers...)
 }
 
 func (d *Router) POST(relativePath string, handlers ...gin.HandlerFunc) {
-	d.Handle(http.PostRequest, relativePath, handlers...)
+	d.Handle(http.MethodPost, relativePath, handlers...)
 }
 
 func (d *Router) GET(relativePath string, handlers ...gin.HandlerFunc) {
-	d.Handle(http.GetRequest, relativePath, handlers...)
+	d.Handle(http.MethodGet, relativePath, handlers...)
 }
 
 func (d *Router) DELETE(relativePath string, handlers ...gin.HandlerFunc) {
-	d.Handle(http.DeleteRequest, relativePath, handlers...)
+	d.Handle(http.MethodDelete, relativePath, handlers...)
 }
 
 func (d *Router) PUT(relativePath string, handlers ...gin.HandlerFunc) {
-	d.Handle(http.PutRequest, relativePath, handlers...)
+	d.Handle(http.MethodPut, relativePath, handlers...)
 }
 
 func (d *Router) OPTIONS(relativePath string, handlers ...gin.HandlerFunc) {
-	d.Handle(http.OptionsRequest, relativePath, handlers...)
+	d.Handle(http.MethodOptions, relativePath, handlers...)
 }
 
 func buildRouter(ctx context.Context, config cfg.Config, logger log.Logger, settings *Settings, definitions *Router, router gin.IRouter) ([]Definition, error) {

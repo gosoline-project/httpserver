@@ -1,0 +1,26 @@
+app:
+  env: test
+  name: compression-test
+  tags:
+    project: gosoline
+    family: test
+    group: grp
+
+httpserver:
+  default:
+    port: 0
+    mode: release
+    compression:
+      level: default
+      decompression: true
+      exclude:
+        extension:
+          - xyz
+        path:
+          - /uncompressed
+        path_regex:
+          - ^.*no-compression.*$
+    timeout:
+      read: 10s
+      write: 10s
+      idle: 10s

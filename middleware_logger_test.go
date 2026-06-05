@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gosoline-project/httpserver"
 	"github.com/justtrackio/gosoline/pkg/clock"
 	clockMocks "github.com/justtrackio/gosoline/pkg/clock/mocks"
-	"github.com/justtrackio/gosoline/pkg/httpserver"
 	"github.com/justtrackio/gosoline/pkg/log"
 	logMocks "github.com/justtrackio/gosoline/pkg/log/mocks"
 	"github.com/justtrackio/gosoline/pkg/test/matcher"

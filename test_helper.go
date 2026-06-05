@@ -3,12 +3,28 @@ package httpserver
 import (
 	"bytes"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 
 	"github.com/gin-contrib/location"
 	"github.com/gin-gonic/gin"
+)
+
+//go:generate go run github.com/vektra/mockery/v2 --name NetListener --with-expecter
+type NetListener interface {
+	net.Listener
+}
+
+//go:generate go run github.com/vektra/mockery/v2 --name NetConn --with-expecter
+type NetConn interface {
+	net.Conn
+}
+
+var (
+	_ NetListener = nil
+	_ NetConn     = nil
 )
 
 type HttpBody interface {

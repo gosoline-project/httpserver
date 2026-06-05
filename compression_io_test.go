@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gosoline-project/httpserver"
 	"github.com/justtrackio/gosoline/pkg/encoding/base64"
-	"github.com/justtrackio/gosoline/pkg/httpserver"
 	"github.com/stretchr/testify/assert"
 )
 

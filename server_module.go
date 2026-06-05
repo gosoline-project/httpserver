@@ -39,11 +39,12 @@ type HttpServer struct {
 	kernel.EssentialModule
 	kernel.ServiceStage
 
-	logger   log.Logger
-	server   *http.Server
-	listener net.Listener
-	settings *Settings
-	healthy  atomic.Bool
+	logger         log.Logger
+	server         *http.Server
+	listener       net.Listener
+	settings       *Settings
+	metricRecorder ServerMetricRecorder
+	healthy        atomic.Bool
 }
 
 func NewServer(name string, definer RouterFactory) kernel.ModuleFactory {
@@ -85,7 +86,8 @@ func NewServerWithSettings(ctx context.Context, name string, definer RouterFacto
 			return nil, fmt.Errorf("could not create sampling middleware: %w", err)
 		}
 
-		metricMiddleware, setupMetricMiddleware := NewMetricMiddleware(name)
+		metricRecorder := newServerMetricRecorder(name)
+		metricMiddleware, setupMetricMiddleware := NewMetricMiddleware(name, metricRecorder)
 
 		if compressionMiddlewares, err = configureCompression(settings.Compression); err != nil {
 			return nil, fmt.Errorf("could not configure compression: %w", err)
@@ -112,6 +114,7 @@ func NewServerWithSettings(ctx context.Context, name string, definer RouterFacto
 			return nil, fmt.Errorf("can not get health checker: %w", err)
 		}
 		router.GET("/health", buildHealthCheckHandler(logger, healthChecker))
+		router.Use(ConcurrentRequestLimitMiddleware(settings.Concurrency))
 
 		definitions := &Router{}
 		if err = definer(ctx, config, logger.WithChannel("handler"), definitions); err != nil {
@@ -128,17 +131,20 @@ func NewServerWithSettings(ctx context.Context, name string, definer RouterFacto
 			return nil, fmt.Errorf("can not append metadata: %w", err)
 		}
 
-		return NewWithInterfaces(ctx, logger, router, tracingInstrumentor, settings)
+		return NewWithInterfaces(ctx, logger, router, tracingInstrumentor, settings, metricRecorder)
 	}
 }
 
-func NewWithInterfaces(ctx context.Context, logger log.Logger, router *gin.Engine, tracer tracing.Instrumentor, settings *Settings) (*HttpServer, error) {
+func NewWithInterfaces(ctx context.Context, logger log.Logger, router *gin.Engine, tracer tracing.Instrumentor, settings *Settings, metricRecorder ServerMetricRecorder) (*HttpServer, error) {
+	connectionPressureManager := NewConnectionPressureManager(ctx, metricRecorder)
+
 	server := &http.Server{
 		Addr:         ":" + settings.Port,
 		Handler:      tracer.HttpHandler(router),
 		ReadTimeout:  settings.Timeout.Read,
 		WriteTimeout: settings.Timeout.Write,
 		IdleTimeout:  settings.Timeout.Idle,
+		ConnState:    connectionPressureManager.ConnState,
 	}
 
 	var err error
@@ -154,14 +160,16 @@ func NewWithInterfaces(ctx context.Context, logger log.Logger, router *gin.Engin
 	if listener, err = net.Listen("tcp", address); err != nil {
 		return nil, err
 	}
+	listener = NewConnectionLimitListener(ctx, logger, listener, settings.Concurrency, connectionPressureManager)
 
 	logger.Info(ctx, "serving httpserver requests on address %s", listener.Addr().String())
 
 	apiServer := &HttpServer{
-		logger:   logger,
-		server:   server,
-		listener: listener,
-		settings: settings,
+		logger:         logger,
+		server:         server,
+		listener:       listener,
+		settings:       settings,
+		metricRecorder: metricRecorder,
 	}
 
 	return apiServer, nil
@@ -174,6 +182,7 @@ func (s *HttpServer) IsHealthy(ctx context.Context) (bool, error) {
 func (s *HttpServer) Run(ctx context.Context) error {
 	cfn := coffin.New()
 	cfn.GoWithContext(ctx, s.waitForStop)
+	cfn.GoWithContext(ctx, s.metricRecorder.Run)
 	cfn.Go(func() error {
 		err := s.server.Serve(s.listener)
 
