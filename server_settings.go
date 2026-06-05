@@ -32,6 +32,10 @@ type (
 		RequestHeaders    []string `cfg:"request_headers"`
 	}
 
+	ErrorsSettings struct {
+		Privacy string `cfg:"privacy" default:"private" validate:"oneof=public private"`
+	}
+
 	ProfilingSettings struct {
 		Enabled bool                 `cfg:"enabled" default:"false"`
 		Api     ProfilingApiSettings `cfg:"api"`
@@ -59,6 +63,8 @@ type (
 		Timeout TimeoutSettings `cfg:"timeout"`
 		// Logging settings
 		Logging LoggingSettings `cfg:"logging"`
+		// Errors settings.
+		Errors ErrorsSettings `cfg:"errors"`
 		// MaxBodyBytes is the maximum size of an incoming request body in bytes.
 		// A value of 0 disables the limit. Default: 10 MiB.
 		MaxBodyBytes int64 `cfg:"max_body_bytes" default:"10485760"`

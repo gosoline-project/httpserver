@@ -7,6 +7,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const (
+	ErrorPrivacyPublic  = "public"
+	ErrorPrivacyPrivate = "private"
+)
+
 type ErrorHandler func(statusCode int, err error) Response
 
 type ErrorWithStatus interface {
@@ -39,12 +44,7 @@ func (e errorWithStatus) Unwrap() error {
 }
 
 func errorHandlerJson(statusCode int, err error) Response {
-	body := gin.H{"err": err.Error()}
-	if statusCode >= 500 {
-		body = gin.H{"err": "internal server error"}
-	}
-
-	return NewJsonResponse(body, WithStatusCode(statusCode))
+	return NewJsonResponse(gin.H{"err": err.Error()}, WithStatusCode(statusCode))
 }
 
 func WithErrorHandler(handler ErrorHandler) {

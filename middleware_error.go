@@ -7,6 +7,10 @@ import (
 )
 
 func ErrorMiddleware() gin.HandlerFunc {
+	return ErrorMiddlewareWithSettings(ErrorsSettings{})
+}
+
+func ErrorMiddlewareWithSettings(settings ErrorsSettings) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 
@@ -16,7 +20,13 @@ func ErrorMiddleware() gin.HandlerFunc {
 
 		err := c.Errors.Last().Err
 		statusCode := GetErrorStatusCode(err)
-		response := GetErrorHandler()(statusCode, err)
+
+		if statusCode >= 500 && settings.Privacy == ErrorPrivacyPublic {
+			err = fmt.Errorf("internal server error")
+		}
+
+		errorHandler := GetErrorHandler()
+		response := errorHandler(statusCode, err)
 
 		if err = BindHandleResponse(response, c); err != nil {
 			c.Errors = append(c.Errors, &gin.Error{Err: fmt.Errorf("error response error: %w", err), Type: gin.ErrorTypePrivate})

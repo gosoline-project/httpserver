@@ -21,7 +21,25 @@ func TestErrorMiddlewareTestSuite(t *testing.T) {
 }
 
 func (s *errorMiddlewareTestSuite) TestDefaultErrorReturnsGenericInternalServerError() {
-	recorder := s.serveErrorMiddlewareRequest(errors.New("super secret internal detail"))
+	recorder := s.serveErrorMiddlewareRequest(errors.New("super secret internal detail"), httpserver.ErrorMiddleware())
+
+	s.Equal(http.StatusInternalServerError, recorder.Code)
+	s.JSONEq(`{"err":"super secret internal detail"}`, recorder.Body.String())
+}
+
+func (s *errorMiddlewareTestSuite) TestPrivateErrorsPrivacyReturnsGenericInternalServerError() {
+	recorder := s.serveErrorMiddlewareRequest(errors.New("super secret internal detail"), httpserver.ErrorMiddlewareWithSettings(httpserver.ErrorsSettings{
+		Privacy: httpserver.ErrorPrivacyPrivate,
+	}))
+
+	s.Equal(http.StatusInternalServerError, recorder.Code)
+	s.JSONEq(`{"err":"super secret internal detail"}`, recorder.Body.String())
+}
+
+func (s *errorMiddlewareTestSuite) TestPublicErrorsPrivacyReturnsDetailedInternalServerError() {
+	recorder := s.serveErrorMiddlewareRequest(errors.New("super secret internal detail"), httpserver.ErrorMiddlewareWithSettings(httpserver.ErrorsSettings{
+		Privacy: httpserver.ErrorPrivacyPublic,
+	}))
 
 	s.Equal(http.StatusInternalServerError, recorder.Code)
 	s.JSONEq(`{"err":"internal server error"}`, recorder.Body.String())
@@ -29,19 +47,19 @@ func (s *errorMiddlewareTestSuite) TestDefaultErrorReturnsGenericInternalServerE
 
 func (s *errorMiddlewareTestSuite) TestStatusErrorReturnsStatusAndExposesError() {
 	err := httpserver.NewErrorWithStatus(http.StatusBadRequest, errors.New("bad request detail"))
-	recorder := s.serveErrorMiddlewareRequest(err)
+	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddleware())
 
 	s.Equal(http.StatusBadRequest, recorder.Code)
 	s.JSONEq(`{"err":"bad request detail"}`, recorder.Body.String())
 }
 
-func (s *errorMiddlewareTestSuite) serveErrorMiddlewareRequest(err error) *httptest.ResponseRecorder {
+func (s *errorMiddlewareTestSuite) serveErrorMiddlewareRequest(err error, middleware gin.HandlerFunc) *httptest.ResponseRecorder {
 	s.T().Helper()
 
 	gin.SetMode(gin.TestMode)
 
 	router := gin.New()
-	router.Use(httpserver.ErrorMiddleware())
+	router.Use(middleware)
 	router.GET("/error", func(c *gin.Context) {
 		require.NotNil(s.T(), c.Error(err))
 	})
