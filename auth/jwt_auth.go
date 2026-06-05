@@ -1,13 +1,16 @@
 package auth
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/gosoline-project/httpserver"
 	"github.com/justtrackio/gosoline/pkg/cfg"
+	"github.com/justtrackio/gosoline/pkg/log"
 )
 
 const (
@@ -17,6 +20,10 @@ const (
 
 type jwtAuthenticator struct {
 	jwtTokenHandler JwtTokenHandler
+}
+
+func JwtAuthHandlerFactory(ctx context.Context, config cfg.Config, logger log.Logger, settings *httpserver.Settings) (gin.HandlerFunc, error) {
+	return NewJwtAuthHandler(config, settings.Name)
 }
 
 func NewJwtAuthHandler(config cfg.Config, name string) (gin.HandlerFunc, error) {

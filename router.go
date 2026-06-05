@@ -13,7 +13,7 @@ import (
 
 type (
 	RouterFactory     func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router) error
-	MiddlewareFactory func(ctx context.Context, config cfg.Config, logger log.Logger) (gin.HandlerFunc, error)
+	MiddlewareFactory func(ctx context.Context, config cfg.Config, logger log.Logger, settings *Settings) (gin.HandlerFunc, error)
 )
 
 type Definition struct {
@@ -114,7 +114,7 @@ func (d *Router) OPTIONS(relativePath string, handlers ...gin.HandlerFunc) {
 	d.Handle(http.OptionsRequest, relativePath, handlers...)
 }
 
-func buildRouter(ctx context.Context, config cfg.Config, logger log.Logger, definitions *Router, router gin.IRouter) ([]Definition, error) {
+func buildRouter(ctx context.Context, config cfg.Config, logger log.Logger, settings *Settings, definitions *Router, router gin.IRouter) ([]Definition, error) {
 	if definitions == nil {
 		return nil, fmt.Errorf("route definitions should not be nil")
 	}
@@ -143,7 +143,7 @@ func buildRouter(ctx context.Context, config cfg.Config, logger log.Logger, defi
 	}
 
 	for _, f := range definitions.middlewareFactories {
-		if middleware, err = f(ctx, config, logger); err != nil {
+		if middleware, err = f(ctx, config, logger, settings); err != nil {
 			return nil, fmt.Errorf("error creating middleware: %w", err)
 		}
 
@@ -159,7 +159,7 @@ func buildRouter(ctx context.Context, config cfg.Config, logger log.Logger, defi
 
 	definitionList = append(definitionList, definitions.routes...)
 	for _, c := range definitions.children {
-		if childDefinitions, err = buildRouter(ctx, config, logger, c, grp); err != nil {
+		if childDefinitions, err = buildRouter(ctx, config, logger, settings, c, grp); err != nil {
 			return nil, fmt.Errorf("error building children: %w", err)
 		}
 

@@ -24,7 +24,7 @@ func (s *errorMiddlewareTestSuite) TestDefaultErrorReturnsGenericInternalServerE
 	recorder := s.serveErrorMiddlewareRequest(errors.New("super secret internal detail"), httpserver.ErrorMiddleware())
 
 	s.Equal(http.StatusInternalServerError, recorder.Code)
-	s.JSONEq(`{"err":"super secret internal detail"}`, recorder.Body.String())
+	s.JSONEq(`{"err":"internal server error"}`, recorder.Body.String())
 }
 
 func (s *errorMiddlewareTestSuite) TestPrivateErrorsPrivacyReturnsGenericInternalServerError() {
@@ -33,7 +33,7 @@ func (s *errorMiddlewareTestSuite) TestPrivateErrorsPrivacyReturnsGenericInterna
 	}))
 
 	s.Equal(http.StatusInternalServerError, recorder.Code)
-	s.JSONEq(`{"err":"super secret internal detail"}`, recorder.Body.String())
+	s.JSONEq(`{"err":"internal server error"}`, recorder.Body.String())
 }
 
 func (s *errorMiddlewareTestSuite) TestPublicErrorsPrivacyReturnsDetailedInternalServerError() {
@@ -42,7 +42,7 @@ func (s *errorMiddlewareTestSuite) TestPublicErrorsPrivacyReturnsDetailedInterna
 	}))
 
 	s.Equal(http.StatusInternalServerError, recorder.Code)
-	s.JSONEq(`{"err":"internal server error"}`, recorder.Body.String())
+	s.JSONEq(`{"err":"super secret internal detail"}`, recorder.Body.String())
 }
 
 func (s *errorMiddlewareTestSuite) TestStatusErrorReturnsStatusAndExposesError() {

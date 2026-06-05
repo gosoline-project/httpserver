@@ -16,7 +16,7 @@ import (
 )
 
 func CreateEmbeddedStaticServe(files embed.FS, dir string, excludes ...string) MiddlewareFactory {
-	return func(ctx context.Context, config cfg.Config, logger log.Logger) (gin.HandlerFunc, error) {
+	return func(ctx context.Context, config cfg.Config, logger log.Logger, _ *Settings) (gin.HandlerFunc, error) {
 		var err error
 		var dist fs.FS
 		var file fs.File

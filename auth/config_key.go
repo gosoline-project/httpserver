@@ -1,11 +1,13 @@
 package auth
 
 import (
+	"context"
 	"crypto/subtle"
 	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gosoline-project/httpserver"
 	"github.com/justtrackio/gosoline/pkg/cfg"
 	"github.com/justtrackio/gosoline/pkg/funk"
 	"github.com/justtrackio/gosoline/pkg/log"
@@ -25,6 +27,12 @@ type configKeyAuthenticator struct {
 }
 
 type ApiKeyProvider func(ginCtx *gin.Context) string
+
+func ConfigKeyHandlerFactory(provider ApiKeyProvider) httpserver.MiddlewareFactory {
+	return func(ctx context.Context, config cfg.Config, logger log.Logger, settings *httpserver.Settings) (gin.HandlerFunc, error) {
+		return NewConfigKeyHandler(config, logger, settings.Name, provider)
+	}
+}
 
 func NewConfigKeyHandler(config cfg.Config, logger log.Logger, name string, provider ApiKeyProvider) (gin.HandlerFunc, error) {
 	var err error

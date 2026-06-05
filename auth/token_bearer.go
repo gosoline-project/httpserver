@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gosoline-project/httpserver"
 	"github.com/justtrackio/gosoline/pkg/cfg"
 	"github.com/justtrackio/gosoline/pkg/log"
 )
@@ -80,6 +81,12 @@ type (
 	TokenBearerProvider func(ctx context.Context, key string, token string) (TokenBearer, error)
 	ModelProvider       func() TokenBearer
 )
+
+func TokenBearerHandlerFactory(provider TokenBearerProvider) httpserver.MiddlewareFactory {
+	return func(ctx context.Context, config cfg.Config, logger log.Logger, settings *httpserver.Settings) (gin.HandlerFunc, error) {
+		return NewTokenBearerHandler(config, logger, settings.Name, provider)
+	}
+}
 
 func NewTokenBearerHandler(config cfg.Config, logger log.Logger, name string, provider TokenBearerProvider) (gin.HandlerFunc, error) {
 	var err error

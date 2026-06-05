@@ -21,7 +21,7 @@ func ErrorMiddlewareWithSettings(settings ErrorsSettings) gin.HandlerFunc {
 		err := c.Errors.Last().Err
 		statusCode := GetErrorStatusCode(err)
 
-		if statusCode >= 500 && settings.Privacy == ErrorPrivacyPublic {
+		if statusCode >= 500 && (settings.Privacy == ErrorPrivacyPrivate || settings.Privacy == "") {
 			err = fmt.Errorf("internal server error")
 		}
 

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/base64"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gosoline-project/httpserver"
 	"github.com/justtrackio/gosoline/pkg/cfg"
 	"github.com/justtrackio/gosoline/pkg/log"
 )
@@ -22,6 +24,10 @@ const (
 type basicAuthAuthenticator struct {
 	logger log.Logger
 	users  map[string]string
+}
+
+func BasicAuthHandlerFactory(ctx context.Context, config cfg.Config, logger log.Logger, settings *httpserver.Settings) (gin.HandlerFunc, error) {
+	return NewBasicAuthHandler(config, logger, settings.Name)
 }
 
 func NewBasicAuthHandler(config cfg.Config, logger log.Logger, name string) (gin.HandlerFunc, error) {

@@ -52,12 +52,15 @@ func NewServer(name string, definer RouterFactory) kernel.ModuleFactory {
 		if err := config.UnmarshalKey(HttpserverSettingsKey(name), settings); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal httpserver settings: %w", err)
 		}
+		settings.Name = name
 
 		return NewServerWithSettings(ctx, name, definer, settings)(ctx, config, logger)
 	}
 }
 
 func NewServerWithSettings(ctx context.Context, name string, definer RouterFactory, settings *Settings) kernel.ModuleFactory {
+	settings.Name = name
+
 	return func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
 		channel := fmt.Sprintf("httpserver-%s", name)
 		logger = logger.WithChannel(channel)
@@ -115,7 +118,7 @@ func NewServerWithSettings(ctx context.Context, name string, definer RouterFacto
 			return nil, fmt.Errorf("could not define routes: %w", err)
 		}
 
-		if definitionList, err = buildRouter(ctx, config, logger, definitions, router); err != nil {
+		if definitionList, err = buildRouter(ctx, config, logger, settings, definitions, router); err != nil {
 			return nil, fmt.Errorf("could not build router: %w", err)
 		}
 

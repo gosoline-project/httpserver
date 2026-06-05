@@ -51,6 +51,7 @@ type (
 
 	// Settings structure for an API server.
 	Settings struct {
+		Name string
 		// Port the API listens to.
 		Port string `cfg:"port"        default:"8080"`
 		// Mode is either debug, release, test.
