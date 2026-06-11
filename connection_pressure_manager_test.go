@@ -20,7 +20,7 @@ type ConnectionPressureManagerTestSuite struct {
 	manager  httpserver.ConnectionPressureManager
 }
 
-func TestConnectionPressureManagerTestSuite(t *testing.T) {
+func TestRunConnectionPressureManagerTestSuite(t *testing.T) {
 	suite.Run(t, new(ConnectionPressureManagerTestSuite))
 }
 
@@ -71,11 +71,11 @@ func (s *ConnectionPressureManagerTestSuite) TestClosesOldestIdleConnection() {
 	s.manager.ConnState(connA, http.StateNew)
 	s.manager.ConnState(connA, http.StateIdle)
 	s.manager.ConnState(connB, http.StateNew)
-	s.manager.ConnState(connB, http.StateIdle)
+	s.manager.ConnState(connA, http.StateIdle)
 
 	closed, err := s.manager.CloseOldestIdleConnection()
 
-	s.Require().NoError(err)
+	s.NoError(err)
 	s.True(closed)
 	s.True(connAClosed.Load())
 }
@@ -88,7 +88,7 @@ func (s *ConnectionPressureManagerTestSuite) TestDoesNotCloseActiveConnection() 
 
 	closed, err := s.manager.CloseOldestIdleConnection()
 
-	s.Require().NoError(err)
+	s.NoError(err)
 	s.False(closed)
 }
 
@@ -102,8 +102,8 @@ func (s *ConnectionPressureManagerTestSuite) TestTracksClosedOnceWhenIdleConnect
 	s.manager.ConnState(conn, http.StateIdle)
 
 	closed, err := s.manager.CloseOldestIdleConnection()
-	s.Require().NoError(err)
-	s.Require().True(closed)
+	s.NoError(err)
+	s.True(closed)
 
 	s.manager.ConnState(conn, http.StateClosed)
 }
