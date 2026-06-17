@@ -292,6 +292,27 @@ func TestBindCases(t *testing.T) {
 	}
 }
 
+func TestBindReportsBindErrorType(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	r := gin.New()
+	r.Use(func(ctx *gin.Context) {
+		ctx.Next()
+
+		assert.Len(t, ctx.Errors, 1)
+		assert.True(t, ctx.Errors[0].IsType(gin.ErrorTypeBind))
+	})
+	r.POST("/json", httpserver.Bind(func(ctx context.Context, input *bindJsonInput) (httpserver.Response, error) {
+		return httpserver.NewJsonResponse(input), nil
+	}))
+
+	req := httptest.NewRequest(http.MethodPost, "/json", strings.NewReader(`{"name":`))
+	req.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+
+	r.ServeHTTP(recorder, req)
+}
+
 func TestBindHandleResponseSkipsBodyHandlingForBodylessResponses(t *testing.T) {
 	cases := []struct {
 		name       string

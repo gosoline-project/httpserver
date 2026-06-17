@@ -27,7 +27,7 @@ func BindR[I any](handler func(ctx context.Context, req *http.Request, input *I)
 		var response Response
 
 		if input, err = BindHandleRequest[I](ginCtx, tags, binders); err != nil {
-			reportGinError(ginCtx, NewErrorWithStatus(http.StatusBadRequest, fmt.Errorf("bind error: %w", err)))
+			reportGinErrorWithType(ginCtx, NewErrorWithStatus(http.StatusBadRequest, fmt.Errorf("bind error: %w", err)), gin.ErrorTypeBind)
 
 			return
 		}
@@ -81,7 +81,7 @@ func BindSseR[I any](handler func(ctx context.Context, req *http.Request, input 
 		var input *I
 
 		if input, err = BindHandleRequest[I](ginCtx, tags, binders); err != nil {
-			reportGinError(ginCtx, NewErrorWithStatus(http.StatusBadRequest, fmt.Errorf("bind error: %w", err)))
+			reportGinErrorWithType(ginCtx, NewErrorWithStatus(http.StatusBadRequest, fmt.Errorf("bind error: %w", err)), gin.ErrorTypeBind)
 
 			return
 		}
@@ -259,8 +259,12 @@ func BindHandleResponse(response Response, ginCtx *gin.Context) error {
 }
 
 func reportGinError(ginCtx *gin.Context, err error) {
+	reportGinErrorWithType(ginCtx, err, gin.ErrorTypePrivate)
+}
+
+func reportGinErrorWithType(ginCtx *gin.Context, err error, errType gin.ErrorType) {
 	ginErr := ginCtx.Error(err)
-	ginErr.Type = gin.ErrorTypePrivate
+	ginErr.Type = errType
 }
 
 func hasBodylessResponse(request *http.Request, statusCode int) bool {

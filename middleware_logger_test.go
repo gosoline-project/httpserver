@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"github.com/gosoline-project/httpserver"
 	"github.com/justtrackio/gosoline/pkg/clock"
 	clockMocks "github.com/justtrackio/gosoline/pkg/clock/mocks"
@@ -85,6 +86,34 @@ func (s *loggingMiddlewareTestSuite) TestBindError() {
 	s.Require().Error(err)
 
 	s.logger.EXPECT().Warn(matcher.Context, "%s %s %s - bind error: %s", "GET", "path", "HTTP/1.1", "failed to read body")
+
+	s.handler(ginCtx)
+}
+
+func (s *loggingMiddlewareTestSuite) TestBindValidationErrorIncludesInvalidValue() {
+	ginCtx := buildRequest()
+
+	type input struct {
+		Value string `validate:"oneof=a b"`
+	}
+
+	err := validator.New().Struct(input{Value: "c"})
+	s.Require().Error(err)
+
+	ginErr := ginCtx.Error(&gin.Error{
+		Err:  fmt.Errorf("json: %w", err),
+		Type: gin.ErrorTypeBind,
+	})
+	s.Require().Error(ginErr)
+
+	s.logger.EXPECT().Warn(
+		matcher.Context,
+		"%s %s %s - bind error: %s",
+		"GET",
+		"path",
+		"HTTP/1.1",
+		"json: Key: 'input.Value' Error:Field validation for 'Value' failed on the 'oneof' tag; validation details: field=Value tag=oneof value=c param=a b",
+	)
 
 	s.handler(ginCtx)
 }

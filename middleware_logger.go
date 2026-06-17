@@ -2,12 +2,14 @@ package httpserver
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 	"github.com/justtrackio/gosoline/pkg/clock"
 	"github.com/justtrackio/gosoline/pkg/encoding/base64"
 	"github.com/justtrackio/gosoline/pkg/exec"
@@ -159,7 +161,7 @@ func (lc *logCall) finalize(ginCtx *gin.Context, requestTimeSecond float64) {
 		case exec.IsConnectionError(e):
 			logger.Info(ctx, "%s %s %s - connection error: %s", method, path, proto, e.Error())
 		case e.IsType(gin.ErrorTypeBind):
-			logger.Warn(ctx, "%s %s %s - bind error: %s", method, path, proto, e.Err.Error())
+			logger.Warn(ctx, "%s %s %s - bind error: %s", method, path, proto, formatBindError(e.Err))
 		case e.IsType(gin.ErrorTypeRender):
 			logger.Warn(ctx, "%s %s %s - render error: %s", method, path, proto, e.Err.Error())
 		case validation.IsValidationError(e):
@@ -168,6 +170,31 @@ func (lc *logCall) finalize(ginCtx *gin.Context, requestTimeSecond float64) {
 			logger.Error(ctx, "%s %s %s: %w", method, path, proto, e.Err)
 		}
 	}
+}
+
+func formatBindError(err error) string {
+	var validationErrors validator.ValidationErrors
+	if !errors.As(err, &validationErrors) {
+		return err.Error()
+	}
+
+	details := make([]string, 0, len(validationErrors))
+	for _, vErr := range validationErrors {
+		val := truncateLogValue(fmt.Sprintf("%v", vErr.Value()))
+		details = append(details, fmt.Sprintf("field=%s tag=%s value=%s param=%s", vErr.Field(), vErr.Tag(), val, vErr.Param()))
+	}
+
+	return fmt.Sprintf("%s; validation details: %s", err.Error(), strings.Join(details, "; "))
+}
+
+func truncateLogValue(value string) string {
+	const maxLogValueLength = 256
+
+	if len(value) <= maxLogValueLength {
+		return value
+	}
+
+	return value[:maxLogValueLength] + "..."
 }
 
 func getPathRaw(ginCtx *gin.Context) string {
