@@ -9,6 +9,7 @@ import (
 
 var defaultTrustedCIDRs, defaultTrustedCIDRsErr = parseCIDRs([]string{"0.0.0.0/0", "::/0"})
 
+// ResolveClientIP resolves the caller IP from forwarded headers and falls back to req.RemoteAddr.
 func ResolveClientIP(req *http.Request) (string, error) {
 	var err error
 	var remoteAddr string

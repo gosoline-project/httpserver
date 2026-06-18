@@ -15,6 +15,7 @@ import (
 	"github.com/justtrackio/gosoline/pkg/log"
 )
 
+// CreateEmbeddedStaticServe creates middleware that serves files from an embedded filesystem.
 func CreateEmbeddedStaticServe(files embed.FS, dir string, excludes ...string) MiddlewareFactory {
 	return func(ctx context.Context, config cfg.Config, logger log.Logger, _ *Settings) (gin.HandlerFunc, error) {
 		var err error

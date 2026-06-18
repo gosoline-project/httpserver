@@ -11,14 +11,20 @@ import (
 )
 
 const (
-	perRoute                       = "PerRoute"
-	MetricHttpRequestCount         = "HttpRequestCount"
+	perRoute = "PerRoute"
+	// MetricHttpRequestCount is the total request count metric name.
+	MetricHttpRequestCount = "HttpRequestCount"
+	// MetricHttpRequestCountPerRoute is the per-route request count metric name.
 	MetricHttpRequestCountPerRoute = "HttpRequestCountPerRoute"
-	MetricHttpRequestResponseTime  = "HttpRequestResponseTime"
-	MetricHttpRequestsRejected     = "HttpRequestsRejected"
-	MetricHttpStatus               = "HttpStatus"
+	// MetricHttpRequestResponseTime is the request duration metric name.
+	MetricHttpRequestResponseTime = "HttpRequestResponseTime"
+	// MetricHttpRequestsRejected is the rejected request count metric name.
+	MetricHttpRequestsRejected = "HttpRequestsRejected"
+	// MetricHttpStatus is the prefix for HTTP status class metric names.
+	MetricHttpStatus = "HttpStatus"
 )
 
+// NewMetricMiddleware creates request metrics middleware and a setup hook for route defaults.
 func NewMetricMiddleware(name string, metricRecorder ServerMetricRecorder) (middleware gin.HandlerFunc, setupHandler func(definitions []Definition)) {
 	// writer without any defaults until we initialize some defaults and overwrite it
 	writer := metric.NewWriter()

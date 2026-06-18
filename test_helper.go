@@ -36,6 +36,7 @@ func HttpTest[Body HttpBody](method, path, requestPath string, body Body, handle
 
 	r := gin.New()
 	r.Use(location.Default())
+	r.Use(ErrorMiddleware())
 	r.Handle(method, path, handler)
 
 	var bodyReader io.Reader

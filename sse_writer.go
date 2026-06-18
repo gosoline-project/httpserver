@@ -47,6 +47,7 @@ type (
 	}
 )
 
+// DefaultSseHeartbeatInterval is the interval used for SSE heartbeat comments.
 const DefaultSseHeartbeatInterval = 5 * time.Second
 
 // NewSseWriter creates a new SSE writer that sends events to the provided response writer.

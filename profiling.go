@@ -12,6 +12,7 @@ import (
 	"github.com/justtrackio/gosoline/pkg/log"
 )
 
+// Profiling is the Gosoline module running the optional profiling HTTP server.
 type Profiling struct {
 	kernel.BackgroundModule
 	kernel.ServiceStage
@@ -20,6 +21,7 @@ type Profiling struct {
 	server *http.Server
 }
 
+// ProfilingModuleFactory creates the profiling module factory when profiling is enabled.
 func ProfilingModuleFactory(_ context.Context, config cfg.Config, _ log.Logger) (map[string]kernel.ModuleFactory, error) {
 	settings := &ProfilingSettings{}
 	if err := config.UnmarshalKey("profiling", settings); err != nil {
@@ -42,6 +44,7 @@ func ProfilingModuleFactory(_ context.Context, config cfg.Config, _ log.Logger) 
 	}, nil
 }
 
+// NewProfilingWithInterfaces creates a profiling server from dependencies.
 func NewProfilingWithInterfaces(logger log.Logger, router *gin.Engine, settings *ProfilingSettings) *Profiling {
 	AddProfilingEndpoints(router)
 
@@ -58,6 +61,7 @@ func NewProfilingWithInterfaces(logger log.Logger, router *gin.Engine, settings 
 	}
 }
 
+// Run starts the profiling server until the context is cancelled.
 func (p *Profiling) Run(ctx context.Context) error {
 	go p.waitForStop(ctx)
 	err := p.server.ListenAndServe()

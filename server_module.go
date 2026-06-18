@@ -22,6 +22,7 @@ import (
 	"github.com/justtrackio/gosoline/pkg/tracing"
 )
 
+// ServerMetadata describes the routes registered by one HTTP server.
 type ServerMetadata struct {
 	Name     string            `json:"name"`
 	Handlers []HandlerMetadata `json:"handlers"`
@@ -35,6 +36,7 @@ type HandlerMetadata struct {
 	Path string `json:"path"`
 }
 
+// HttpServer is the Gosoline module running a configured HTTP server.
 type HttpServer struct {
 	kernel.EssentialModule
 	kernel.ServiceStage
@@ -47,6 +49,7 @@ type HttpServer struct {
 	healthy        atomic.Bool
 }
 
+// NewServer creates a module factory for a named HTTP server using config-based settings.
 func NewServer(name string, definer RouterFactory) kernel.ModuleFactory {
 	return func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
 		settings := &Settings{}
@@ -59,6 +62,7 @@ func NewServer(name string, definer RouterFactory) kernel.ModuleFactory {
 	}
 }
 
+// NewServerWithSettings creates a module factory for a named HTTP server using explicit settings.
 func NewServerWithSettings(ctx context.Context, name string, definer RouterFactory, settings *Settings) kernel.ModuleFactory {
 	settings.Name = name
 
@@ -135,6 +139,7 @@ func NewServerWithSettings(ctx context.Context, name string, definer RouterFacto
 	}
 }
 
+// NewWithInterfaces creates an HttpServer from already constructed dependencies.
 func NewWithInterfaces(ctx context.Context, logger log.Logger, router *gin.Engine, tracer tracing.Instrumentor, settings *Settings, metricRecorder ServerMetricRecorder) (*HttpServer, error) {
 	connectionPressureManager := NewConnectionPressureManager(ctx, metricRecorder)
 
@@ -175,10 +180,12 @@ func NewWithInterfaces(ctx context.Context, logger log.Logger, router *gin.Engin
 	return apiServer, nil
 }
 
+// IsHealthy reports whether the server is currently accepting traffic.
 func (s *HttpServer) IsHealthy(ctx context.Context) (bool, error) {
 	return s.healthy.Load(), nil
 }
 
+// Run starts serving HTTP requests until the context is cancelled.
 func (s *HttpServer) Run(ctx context.Context) error {
 	cfn := coffin.New()
 	cfn.GoWithContext(ctx, s.waitForStop)
@@ -225,6 +232,7 @@ func (s *HttpServer) waitForStop(ctx context.Context) error {
 	return nil
 }
 
+// GetPort returns the actual listener port, useful when the configured port is 0.
 func (s *HttpServer) GetPort() (*int, error) {
 	var err error
 	var portStr string

@@ -25,12 +25,14 @@ type logCall struct {
 	fields   log.Fields
 }
 
+// LoggingMiddleware logs incoming HTTP requests and enriches the request context.
 func LoggingMiddleware(logger log.Logger, settings LoggingSettings) gin.HandlerFunc {
 	logger = logger.WithChannel("http")
 
 	return NewLoggingMiddlewareWithInterfaces(logger, settings, clock.Provider)
 }
 
+// NewLoggingMiddlewareWithInterfaces creates request logging middleware from dependencies.
 func NewLoggingMiddlewareWithInterfaces(logger log.Logger, settings LoggingSettings, clock clock.Clock) gin.HandlerFunc {
 	return func(ginCtx *gin.Context) {
 		start := clock.Now()

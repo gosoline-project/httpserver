@@ -8,19 +8,31 @@ import (
 )
 
 const (
+	// BaseProfiling is the base path for profiling endpoints.
 	BaseProfiling = "/debug/profiling"
-	CmdLine       = "/cmdline"
-	Profile       = "/profile"
-	Symbol        = "/symbol"
-	Trace         = "/trace"
-	Allocs        = "/allocs"
-	Block         = "/block"
-	GoRoutine     = "/goroutine"
-	Heap          = "/heap"
-	Mutex         = "/mutex"
-	ThreadCreate  = "/threadcreate"
+	// CmdLine is the pprof command-line endpoint path.
+	CmdLine = "/cmdline"
+	// Profile is the pprof CPU profile endpoint path.
+	Profile = "/profile"
+	// Symbol is the pprof symbol endpoint path.
+	Symbol = "/symbol"
+	// Trace is the pprof trace endpoint path.
+	Trace = "/trace"
+	// Allocs is the pprof allocations endpoint path.
+	Allocs = "/allocs"
+	// Block is the pprof blocking profile endpoint path.
+	Block = "/block"
+	// GoRoutine is the pprof goroutine profile endpoint path.
+	GoRoutine = "/goroutine"
+	// Heap is the pprof heap profile endpoint path.
+	Heap = "/heap"
+	// Mutex is the pprof mutex profile endpoint path.
+	Mutex = "/mutex"
+	// ThreadCreate is the pprof thread creation profile endpoint path.
+	ThreadCreate = "/threadcreate"
 )
 
+// AddProfilingEndpoints registers pprof-compatible profiling endpoints on the Gin engine.
 func AddProfilingEndpoints(r *gin.Engine) {
 	pr := r.Group(BaseProfiling)
 	pr.GET("/", profilingHandler(pprof.Index))

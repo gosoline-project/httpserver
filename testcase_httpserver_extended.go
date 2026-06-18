@@ -81,6 +81,7 @@ type encodeBodyProtobuf struct {
 	ProtobufEncodable
 }
 
+// EncodeBodyProtobuf marks a test request body to be encoded as protobuf.
 func EncodeBodyProtobuf(body ProtobufEncodable) any {
 	return encodeBodyProtobuf{
 		ProtobufEncodable: body,
@@ -91,6 +92,7 @@ type readBodyFile struct {
 	file string
 }
 
+// ReadBodyFile marks a test request body to be loaded from a file.
 func ReadBodyFile(bodyFile string) any {
 	return readBodyFile{
 		file: bodyFile,

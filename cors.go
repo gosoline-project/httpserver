@@ -9,6 +9,7 @@ import (
 	"github.com/justtrackio/gosoline/pkg/cfg"
 )
 
+// Cors creates CORS middleware from legacy api_cors_* configuration keys.
 func Cors(config cfg.Config) (gin.HandlerFunc, error) {
 	var err error
 	var allowedOriginPattern string

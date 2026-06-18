@@ -13,10 +13,13 @@ import (
 )
 
 type (
-	RouterFactory     func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router) error
+	// RouterFactory defines routes on the provided router during server startup.
+	RouterFactory func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router) error
+	// MiddlewareFactory creates a Gin middleware from application dependencies and server settings.
 	MiddlewareFactory func(ctx context.Context, config cfg.Config, logger log.Logger, settings *Settings) (gin.HandlerFunc, error)
 )
 
+// Definition stores one route registered on a Router.
 type Definition struct {
 	group        *Router
 	httpMethod   string
@@ -33,6 +36,7 @@ func (d *Definition) getAbsolutePath() string {
 	return removeDuplicates(absolutePath)
 }
 
+// Router stores route definitions, middleware, and nested groups before they are mounted on Gin.
 type Router struct {
 	basePath            string
 	registerFactories   []RegisterFactoryFunc
@@ -56,6 +60,7 @@ func (d *Router) getAbsolutePath() string {
 	return removeDuplicates(absolutePath)
 }
 
+// Group creates a nested router group below the current router path.
 func (d *Router) Group(relativePath string) *Router {
 	newGroup := &Router{
 		basePath: relativePath,
@@ -68,14 +73,17 @@ func (d *Router) Group(relativePath string) *Router {
 	return newGroup
 }
 
+// Use adds Gin middleware to the current router group.
 func (d *Router) Use(middleware ...gin.HandlerFunc) {
 	d.middleware = append(d.middleware, middleware...)
 }
 
+// UseFactory adds middleware factories to the current router group.
 func (d *Router) UseFactory(factories ...MiddlewareFactory) {
 	d.middlewareFactories = append(d.middlewareFactories, factories...)
 }
 
+// Handle registers a route for the provided HTTP method and relative path.
 func (d *Router) Handle(httpMethod, relativePath string, handlers ...gin.HandlerFunc) {
 	relativePath = trimRightPath(relativePath)
 
@@ -87,30 +95,37 @@ func (d *Router) Handle(httpMethod, relativePath string, handlers ...gin.Handler
 	})
 }
 
+// HandleWith adds a registration factory, usually created with With, to the router.
 func (r *Router) HandleWith(registerFactory RegisterFactoryFunc) {
 	r.registerFactories = append(r.registerFactories, registerFactory)
 }
 
+// PATCH registers a PATCH route.
 func (d *Router) PATCH(relativePath string, handlers ...gin.HandlerFunc) {
 	d.Handle(http.MethodPatch, relativePath, handlers...)
 }
 
+// POST registers a POST route.
 func (d *Router) POST(relativePath string, handlers ...gin.HandlerFunc) {
 	d.Handle(http.MethodPost, relativePath, handlers...)
 }
 
+// GET registers a GET route.
 func (d *Router) GET(relativePath string, handlers ...gin.HandlerFunc) {
 	d.Handle(http.MethodGet, relativePath, handlers...)
 }
 
+// DELETE registers a DELETE route.
 func (d *Router) DELETE(relativePath string, handlers ...gin.HandlerFunc) {
 	d.Handle(http.MethodDelete, relativePath, handlers...)
 }
 
+// PUT registers a PUT route.
 func (d *Router) PUT(relativePath string, handlers ...gin.HandlerFunc) {
 	d.Handle(http.MethodPut, relativePath, handlers...)
 }
 
+// OPTIONS registers an OPTIONS route.
 func (d *Router) OPTIONS(relativePath string, handlers ...gin.HandlerFunc) {
 	d.Handle(http.MethodOptions, relativePath, handlers...)
 }

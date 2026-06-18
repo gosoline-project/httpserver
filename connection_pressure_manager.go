@@ -11,6 +11,8 @@ import (
 	"github.com/justtrackio/gosoline/pkg/clock"
 )
 
+// ConnectionPressureManager tracks connection states and can close idle connections under pressure.
+//
 //go:generate go run github.com/vektra/mockery/v2 --name ConnectionPressureManager --with-expecter
 type ConnectionPressureManager interface {
 	CloseOldestIdleConnection() (bool, error)
@@ -34,10 +36,12 @@ type connectionState struct {
 	idleEntry *list.Element
 }
 
+// NewConnectionPressureManager creates a connection pressure manager with default dependencies.
 func NewConnectionPressureManager(ctx context.Context, metrics ServerMetricRecorder) ConnectionPressureManager {
 	return NewConnectionPressureManagerWithInterfaces(ctx, clock.Provider, metrics)
 }
 
+// NewConnectionPressureManagerWithInterfaces creates a connection pressure manager from dependencies.
 func NewConnectionPressureManagerWithInterfaces(
 	ctx context.Context,
 	clock clock.Clock,

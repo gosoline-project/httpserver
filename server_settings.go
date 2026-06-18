@@ -20,31 +20,37 @@ type (
 		PathRegex []string `cfg:"path_regex"`
 	}
 
+	// HealthCheckSettings configures the standalone health-check server.
 	HealthCheckSettings struct {
 		Port    int             `cfg:"port"    default:"8090"`
 		Path    string          `cfg:"path"    default:"/health"`
 		Timeout TimeoutSettings `cfg:"timeout"`
 	}
 
+	// LoggingSettings configures request logging middleware.
 	LoggingSettings struct {
 		RequestBody       bool     `cfg:"request_body"`
 		RequestBodyBase64 bool     `cfg:"request_body_base64"`
 		RequestHeaders    []string `cfg:"request_headers"`
 	}
 
+	// ErrorsSettings configures error responses returned by the error middleware.
 	ErrorsSettings struct {
 		Privacy string `cfg:"privacy" default:"private" validate:"oneof=public private"`
 	}
 
+	// ProfilingSettings configures the optional profiling HTTP server.
 	ProfilingSettings struct {
 		Enabled bool                 `cfg:"enabled" default:"false"`
 		Api     ProfilingApiSettings `cfg:"api"`
 	}
 
+	// ProfilingApiSettings configures the profiling HTTP endpoint.
 	ProfilingApiSettings struct {
 		Port int `cfg:"port" default:"8091"`
 	}
 
+	// RouterSettings configures Gin router behavior.
 	RouterSettings struct {
 		UseRawPath bool `cfg:"use_raw_path" default:"false"`
 	}
@@ -111,6 +117,7 @@ type (
 	}
 )
 
+// HttpserverSettingsKey returns the config key for a named HTTP server.
 func HttpserverSettingsKey(name string) string {
 	return "httpserver." + name
 }

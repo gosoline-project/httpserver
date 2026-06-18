@@ -21,6 +21,7 @@ func init() {
 
 const expectedTestCaseHttpserverSignature = "func (s TestingSuite) TestFunc(AppUnderTest, *resty.Client) error"
 
+// TestingSuiteHttpServerRouterAware lets HTTP server test suites provide route definitions.
 type TestingSuiteHttpServerRouterAware interface {
 	SetupHttpServerRouter() RouterFactory
 }

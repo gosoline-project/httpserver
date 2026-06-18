@@ -6,17 +6,20 @@ import (
 	"github.com/justtrackio/gosoline/pkg/encoding/json"
 )
 
+// Response is the typed response returned by bound HTTP handlers.
 type Response interface {
 	Body() ([]byte, error)
 	Header() http.Header
 	StatusCode() int
 }
+
 type response struct {
 	body       []byte
 	header     http.Header
 	statusCode int
 }
 
+// NewResponse creates a response with an empty body and status 200 by default.
 func NewResponse(options ...ResponseOption) *response {
 	resp := &response{
 		body:       []byte{},
@@ -43,12 +46,14 @@ func (j response) StatusCode() int {
 	return j.statusCode
 }
 
+// NewStatusResponse creates a response with only an HTTP status code.
 func NewStatusResponse(statusCode int, options ...ResponseOption) *response {
 	responseOptions := append([]ResponseOption{WithStatusCode(statusCode)}, options...)
 
 	return NewResponse(responseOptions...)
 }
 
+// NewTextResponse creates a plain-text response with status 200 by default.
 func NewTextResponse(text string, options ...ResponseOption) *response {
 	responseOptions := append([]ResponseOption{
 		WithBody([]byte(text)),
@@ -64,6 +69,7 @@ type jsonResponse[T any] struct {
 	body T
 }
 
+// NewJsonResponse creates a JSON response with status 200 by default.
 func NewJsonResponse[T any](body T, options ...ResponseOption) *jsonResponse[T] {
 	header := make(http.Header)
 	header.Set("Content-Type", "application/json; charset=utf-8")

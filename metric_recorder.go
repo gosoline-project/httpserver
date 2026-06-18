@@ -11,10 +11,14 @@ import (
 
 const (
 	concurrencyMetricSampleInterval = 10 * time.Second
-	MetricHttpConcurrentRequests    = "HttpConcurrentRequests"
-	MetricHttpOpenConnections       = "HttpOpenConnections"
+	// MetricHttpConcurrentRequests is the active request gauge metric name.
+	MetricHttpConcurrentRequests = "HttpConcurrentRequests"
+	// MetricHttpOpenConnections is the open connection gauge metric name.
+	MetricHttpOpenConnections = "HttpOpenConnections"
 )
 
+// ServerMetricRecorder records active request and connection metrics for a server.
+//
 //go:generate go run github.com/vektra/mockery/v2 --name ServerMetricRecorder --with-expecter
 type ServerMetricRecorder interface {
 	TrackRequestStarted(ctx context.Context)

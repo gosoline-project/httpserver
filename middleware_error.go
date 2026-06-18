@@ -6,10 +6,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ErrorMiddleware creates error middleware with default settings.
 func ErrorMiddleware() gin.HandlerFunc {
 	return ErrorMiddlewareWithSettings(ErrorsSettings{})
 }
 
+// ErrorMiddlewareWithSettings converts Gin context errors into HTTP error responses.
 func ErrorMiddlewareWithSettings(settings ErrorsSettings) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()

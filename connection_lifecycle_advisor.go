@@ -21,6 +21,7 @@ const (
 
 //go:generate go run github.com/vektra/mockery/v2 --name ConnectionLifeCycleAdvisor
 type (
+	// ConnectionLifeCycleAdvisor decides whether a client connection should be closed.
 	ConnectionLifeCycleAdvisor interface {
 		// ShouldCloseConnection checks whether the connection to the remote address should be closed.
 		ShouldCloseConnection(remoteAddr string, headers http.Header) bool
@@ -52,6 +53,7 @@ func ProvideConnectionLifeCycleAdvisor(ctx context.Context, config cfg.Config, _
 	})
 }
 
+// NewConnectionLifeCycleAdvisor creates a connection lifecycle advisor from config.
 func NewConnectionLifeCycleAdvisor(config cfg.Config, serverName string) (ConnectionLifeCycleAdvisor, error) {
 	settings := ConnectionLifeCycleAdvisorSettings{}
 	key := HttpserverSettingsKey(serverName) + ".connection_lifecycle"
@@ -62,6 +64,7 @@ func NewConnectionLifeCycleAdvisor(config cfg.Config, serverName string) (Connec
 	return NewConnectionLifeCycleAdvisorWithInterfaces(clock.Provider, settings), nil
 }
 
+// NewConnectionLifeCycleAdvisorWithInterfaces creates a connection lifecycle advisor from dependencies.
 func NewConnectionLifeCycleAdvisorWithInterfaces(
 	providedClock clock.Clock,
 	settings ConnectionLifeCycleAdvisorSettings,

@@ -10,10 +10,12 @@ import (
 
 var defaultModifier = newDefaultModifier()
 
+// Modifier applies post-binding transformations to request input structs.
 type Modifier interface {
 	Struct(ctx context.Context, v any) error
 }
 
+// WithCustomModifier replaces the package-level input modifier used after binding.
 func WithCustomModifier(modifier Modifier) {
 	defaultModifier = modifier
 }

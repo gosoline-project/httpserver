@@ -34,6 +34,7 @@ type ValidateAlias struct {
 	Tags  string
 }
 
+// AddCustomValidators registers field-level validators with Gin's validator engine.
 func AddCustomValidators(customValidators []CustomValidator) error {
 	var err error
 	var v *validator.Validate
@@ -52,6 +53,7 @@ func AddCustomValidators(customValidators []CustomValidator) error {
 	return nil
 }
 
+// AddStructValidators registers struct-level validators with Gin's validator engine.
 func AddStructValidators(structValidators []StructValidator) error {
 	var err error
 	var v *validator.Validate
@@ -67,6 +69,7 @@ func AddStructValidators(structValidators []StructValidator) error {
 	return nil
 }
 
+// AddCustomTypeFuncs registers type conversion functions used before validation.
 func AddCustomTypeFuncs(customTypeFuncs []CustomTypeFunc) error {
 	var err error
 	var v *validator.Validate
@@ -82,6 +85,7 @@ func AddCustomTypeFuncs(customTypeFuncs []CustomTypeFunc) error {
 	return nil
 }
 
+// AddValidateAlias registers validation tag aliases with Gin's validator engine.
 func AddValidateAlias(aliases []ValidateAlias) error {
 	var err error
 	var v *validator.Validate

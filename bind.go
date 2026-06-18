@@ -12,12 +12,16 @@ import (
 	"github.com/justtrackio/gosoline/pkg/refl"
 )
 
+// Bind adapts a typed handler into a Gin handler by binding request data into
+// the input struct before calling the handler.
 func Bind[I any](handler func(ctx context.Context, input *I) (Response, error), binders ...binding.Binding) gin.HandlerFunc {
 	return BindR[I](func(ctx context.Context, _ *http.Request, input *I) (Response, error) {
 		return handler(ctx, input)
 	}, binders...)
 }
 
+// BindR adapts a typed handler like Bind, but also passes the raw HTTP request
+// to the handler for direct access to headers, method, body metadata, and client data.
 func BindR[I any](handler func(ctx context.Context, req *http.Request, input *I) (Response, error), binders ...binding.Binding) gin.HandlerFunc {
 	tags := refl.GetTagNames(new(I))
 
@@ -44,12 +48,15 @@ func BindR[I any](handler func(ctx context.Context, req *http.Request, input *I)
 	}
 }
 
+// BindN adapts a typed handler that does not need request input binding.
 func BindN(handler func(ctx context.Context) (Response, error)) gin.HandlerFunc {
 	return BindNR(func(ctx context.Context, _ *http.Request) (Response, error) {
 		return handler(ctx)
 	})
 }
 
+// BindNR adapts a typed handler that does not need request input binding, but
+// still needs access to the raw HTTP request.
 func BindNR(handler func(ctx context.Context, req *http.Request) (Response, error)) gin.HandlerFunc {
 	return func(ginCtx *gin.Context) {
 		var err error
@@ -67,12 +74,16 @@ func BindNR(handler func(ctx context.Context, req *http.Request) (Response, erro
 	}
 }
 
+// BindSse adapts a typed SSE handler into a Gin handler by binding request data
+// into the input struct and providing an SSE writer.
 func BindSse[I any](handler func(ctx context.Context, input *I, writer *SseWriter) error, binders ...binding.Binding) gin.HandlerFunc {
 	return BindSseR[I](func(ctx context.Context, _ *http.Request, input *I, writer *SseWriter) error {
 		return handler(ctx, input, writer)
 	}, binders...)
 }
 
+// BindSseR adapts a typed SSE handler like BindSse, but also passes the raw
+// HTTP request to the handler.
 func BindSseR[I any](handler func(ctx context.Context, req *http.Request, input *I, writer *SseWriter) error, binders ...binding.Binding) gin.HandlerFunc {
 	tags := refl.GetTagNames(new(I))
 
@@ -105,12 +116,15 @@ func BindSseR[I any](handler func(ctx context.Context, req *http.Request, input 
 	}
 }
 
+// BindSseN adapts an SSE handler that does not need request input binding.
 func BindSseN(handler func(ctx context.Context, writer *SseWriter) error) gin.HandlerFunc {
 	return BindSseNR(func(ctx context.Context, _ *http.Request, writer *SseWriter) error {
 		return handler(ctx, writer)
 	})
 }
 
+// BindSseNR adapts an SSE handler that does not need request input binding, but
+// still needs access to the raw HTTP request.
 func BindSseNR(handler func(ctx context.Context, req *http.Request, writer *SseWriter) error) gin.HandlerFunc {
 	return func(ginCtx *gin.Context) {
 		var err error
@@ -134,6 +148,8 @@ func BindSseNR(handler func(ctx context.Context, req *http.Request, writer *SseW
 	}
 }
 
+// BindHandleRequest binds request data into a new input value using explicit
+// binders or binders inferred from the request content type and input tags.
 func BindHandleRequest[I any](ginCtx *gin.Context, tags []string, binders []binding.Binding) (*I, error) {
 	in := new(I)
 
@@ -222,6 +238,8 @@ func getTagBinders(tags []string) (binders []binding.Binding) {
 	return
 }
 
+// BindHandleResponse writes a Response to the Gin context, including status,
+// headers, and body handling for methods or status codes that must not include a body.
 func BindHandleResponse(response Response, ginCtx *gin.Context) error {
 	var err error
 	var statusCode int

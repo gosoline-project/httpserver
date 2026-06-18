@@ -10,6 +10,7 @@ import (
 	"github.com/justtrackio/gosoline/pkg/smpl"
 )
 
+// SamplingMiddleware applies sampling decisions to each request context.
 func SamplingMiddleware(ctx context.Context, config cfg.Config, logger log.Logger) (gin.HandlerFunc, error) {
 	var err error
 	var decider smpl.Decider

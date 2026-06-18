@@ -26,6 +26,7 @@ type HttpServerHealthCheck struct {
 	settings *HealthCheckSettings
 }
 
+// NewHealthCheck creates a module factory for the standalone health-check server.
 func NewHealthCheck() kernel.ModuleFactory {
 	return func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
 		var err error
@@ -47,6 +48,7 @@ func NewHealthCheck() kernel.ModuleFactory {
 	}
 }
 
+// NewHealthCheckWithInterfaces creates a health-check server from dependencies.
 func NewHealthCheckWithInterfaces(logger log.Logger, router *gin.Engine, healthChecker kernel.HealthChecker, settings *HealthCheckSettings) *HttpServerHealthCheck {
 	logger = logger.WithChannel("httpserver-health-check")
 
@@ -65,6 +67,7 @@ func NewHealthCheckWithInterfaces(logger log.Logger, router *gin.Engine, healthC
 	}
 }
 
+// Run starts the standalone health-check server until the context is cancelled.
 func (a *HttpServerHealthCheck) Run(ctx context.Context) error {
 	go a.waitForStop(ctx)
 

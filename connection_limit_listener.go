@@ -25,6 +25,7 @@ type limitedConn struct {
 	once    sync.Once
 }
 
+// NewConnectionLimitListener wraps a listener with connection pressure management when configured.
 func NewConnectionLimitListener(
 	ctx context.Context,
 	logger log.Logger,

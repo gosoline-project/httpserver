@@ -7,6 +7,7 @@ import (
 	"github.com/justtrackio/gosoline/pkg/exec"
 )
 
+// RunDefaultServer starts an application with a single HTTP server named "default".
 func RunDefaultServer(routerFactory RouterFactory, options ...application.Option) {
 	RunServers(
 		map[string]RouterFactory{
@@ -16,6 +17,7 @@ func RunDefaultServer(routerFactory RouterFactory, options ...application.Option
 	)
 }
 
+// RunServers starts an application with one HTTP server module per provided router factory.
 func RunServers(servers map[string]RouterFactory, options ...application.Option) {
 	options = append(options, application.WithExecBackoffSettings(&exec.BackoffSettings{
 		InitialInterval: time.Millisecond * 100,

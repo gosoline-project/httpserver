@@ -13,6 +13,7 @@ type countingBodyWriter struct {
 	writtenBytes int
 }
 
+// NewCountingBodyWriter wraps a Gin response writer and returns a counter for written bytes.
 func NewCountingBodyWriter(writer gin.ResponseWriter) (responseWriter gin.ResponseWriter, writtenBytes *int) {
 	result := &countingBodyWriter{
 		ResponseWriter: writer,
@@ -41,6 +42,7 @@ type countingBodyReader struct {
 	readBytes int
 }
 
+// NewCountingBodyReader wraps a request body reader and returns a counter for read bytes.
 func NewCountingBodyReader(reader io.ReadCloser) (readCloser io.ReadCloser, readBytes *int) {
 	result := &countingBodyReader{
 		ReadCloser: reader,
@@ -63,6 +65,7 @@ type gzipBodyReader struct {
 	readBytes int
 }
 
+// NewGZipBodyReader wraps a gzip-compressed request body and counts uncompressed bytes.
 func NewGZipBodyReader(body io.ReadCloser) (io.ReadCloser, *int, error) {
 	reader, err := gzip.NewReader(body)
 	result := &gzipBodyReader{
