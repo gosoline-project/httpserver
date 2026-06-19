@@ -14,9 +14,15 @@ import (
 
 func newCorsConfig(pattern string) cfg.Config {
 	return cfg.New(map[string]any{
-		"api_cors_allowed_origin_pattern": pattern,
-		"api_cors_allowed_headers":        []string{"Content-Type"},
-		"api_cors_allowed_methods":        []string{"GET", "POST"},
+		"httpserver": map[string]any{
+			"default": map[string]any{
+				"cors": map[string]any{
+					"allowed_origin_pattern": pattern,
+					"allowed_headers":        []string{"Content-Type"},
+					"allowed_methods":        []string{"GET", "POST"},
+				},
+			},
+		},
 	})
 }
 
@@ -24,7 +30,7 @@ func newCorsRouter(t *testing.T, pattern string) *gin.Engine {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
-	handler, err := httpserver.Cors(newCorsConfig(pattern))
+	handler, err := httpserver.Cors(newCorsConfig(pattern), "default")
 	require.NoError(t, err)
 
 	router := gin.New()

@@ -1,41 +1,45 @@
 package httpserver
 
 import (
+	"context"
+	"fmt"
 	"regexp"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/justtrackio/gosoline/pkg/cfg"
+	"github.com/justtrackio/gosoline/pkg/log"
 )
 
+type CorsSettings struct {
+	AllowedOriginPattern string   `cfg:"allowed_origin_pattern"`
+	AllowedHeaders       []string `cfg:"allowed_headers"`
+	AllowedMethods       []string `cfg:"allowed_methods"`
+}
+
+func CorsFactory(_ context.Context, config cfg.Config, _ log.Logger, settings *Settings) (gin.HandlerFunc, error) {
+	return Cors(config, settings.Name)
+}
+
 // Cors creates CORS middleware from legacy api_cors_* configuration keys.
-func Cors(config cfg.Config) (gin.HandlerFunc, error) {
+func Cors(config cfg.Config, name string) (gin.HandlerFunc, error) {
 	var err error
-	var allowedOriginPattern string
-	var allowedHeaders []string
-	var allowedMethods []string
 
-	if allowedOriginPattern, err = config.GetString("api_cors_allowed_origin_pattern"); err != nil {
-		return nil, err
+	key := fmt.Sprintf("httpserver.%s.cors", name)
+	settings := &CorsSettings{}
+	if err = config.UnmarshalKey(key, settings); err != nil {
+		return nil, fmt.Errorf("error unmarshalling cors settings: %w", err)
 	}
 
-	validOrigin := regexp.MustCompile("^(?:" + allowedOriginPattern + ")$")
-
-	if allowedHeaders, err = config.GetStringSlice("api_cors_allowed_headers"); err != nil {
-		return nil, err
-	}
-
-	if allowedMethods, err = config.GetStringSlice("api_cors_allowed_methods"); err != nil {
-		return nil, err
-	}
+	validOrigin := regexp.MustCompile("^(?:" + settings.AllowedOriginPattern + ")$")
 
 	return cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
 			return validOrigin.MatchString(origin)
 		},
-		AllowHeaders:     allowedHeaders,
-		AllowMethods:     allowedMethods,
+		AllowHeaders:     settings.AllowedHeaders,
+		AllowMethods:     settings.AllowedMethods,
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}), nil
