@@ -67,11 +67,11 @@ func (s *BindSseTestSuite) TestBindSse_Success() {
 	}))
 
 	rec := s.serveRequest(router, http.MethodPost, "/sse", `{"message":"hello"}`, map[string]string{
-		"Content-Type": "application/json",
+		httpserver.HeaderContentType: httpserver.ContentTypeApplicationJson,
 	})
 
 	s.Equal(http.StatusOK, rec.Code)
-	s.Equal("text/event-stream", rec.Header().Get("Content-Type"))
+	s.Equal(httpserver.ContentTypeEventStream, rec.Header().Get(httpserver.HeaderContentType))
 	s.Equal("data: hello\n\n", rec.Body.String())
 }
 
@@ -88,11 +88,11 @@ func (s *BindSseTestSuite) TestBindSse_HandlerError() {
 	}))
 
 	rec := s.serveRequest(router, http.MethodPost, "/sse", `{"message":"test"}`, map[string]string{
-		"Content-Type": "application/json",
+		httpserver.HeaderContentType: httpserver.ContentTypeApplicationJson,
 	})
 
 	// SSE headers should be set
-	s.Equal("text/event-stream", rec.Header().Get("Content-Type"))
+	s.Equal(httpserver.ContentTypeEventStream, rec.Header().Get(httpserver.HeaderContentType))
 
 	// Body should contain the successful event AND the error event
 	body := rec.Body.String()
@@ -110,7 +110,7 @@ func (s *BindSseTestSuite) TestBindSse_BindingError() {
 
 	// Send invalid JSON
 	rec := s.serveRequest(router, http.MethodPost, "/sse", `{"message":`, map[string]string{
-		"Content-Type": "application/json",
+		httpserver.HeaderContentType: httpserver.ContentTypeApplicationJson,
 	})
 
 	// Should return normal JSON error response (headers not committed yet)
@@ -143,7 +143,7 @@ func (s *BindSseTestSuite) TestBindSse_ClientDisconnect() {
 	rec := s.serveRequestWithContext(router, http.MethodGet, "/sse", ctx)
 
 	// Should have SSE headers
-	s.Equal("text/event-stream", rec.Header().Get("Content-Type"))
+	s.Equal(httpserver.ContentTypeEventStream, rec.Header().Get(httpserver.HeaderContentType))
 
 	// With context already cancelled, first Send will fail with ErrClientDisconnected
 	// and bind handler will exit cleanly without sending error event
@@ -154,7 +154,7 @@ func (s *BindSseTestSuite) TestBindSseR_WithRequest() {
 	router := gin.New()
 	router.POST("/sse", httpserver.BindSseR(func(ctx context.Context, req *http.Request, input *sseTestInput, writer *httpserver.SseWriter) error {
 		// Access request headers
-		userAgent := req.Header.Get("User-Agent")
+		userAgent := req.Header.Get(httpserver.HeaderUserAgent)
 
 		return writer.SendEvent(httpserver.SseEvent{
 			Event: "info",
@@ -163,11 +163,11 @@ func (s *BindSseTestSuite) TestBindSseR_WithRequest() {
 	}))
 
 	rec := s.serveRequest(router, http.MethodPost, "/sse", `{"message":"test"}`, map[string]string{
-		"Content-Type": "application/json",
-		"User-Agent":   "TestClient/1.0",
+		httpserver.HeaderContentType: httpserver.ContentTypeApplicationJson,
+		httpserver.HeaderUserAgent:   "TestClient/1.0",
 	})
 
-	s.Equal("text/event-stream", rec.Header().Get("Content-Type"))
+	s.Equal(httpserver.ContentTypeEventStream, rec.Header().Get(httpserver.HeaderContentType))
 	s.Contains(rec.Body.String(), "event: info\n")
 	s.Contains(rec.Body.String(), "data: TestClient/1.0\n")
 }
@@ -188,7 +188,7 @@ func (s *BindSseTestSuite) TestBindSseN_NoInput() {
 
 	rec := s.serveRequest(router, http.MethodGet, "/events", "", nil)
 
-	s.Equal("text/event-stream", rec.Header().Get("Content-Type"))
+	s.Equal(httpserver.ContentTypeEventStream, rec.Header().Get(httpserver.HeaderContentType))
 	s.Equal("data: event1\n\ndata: event2\n\n", rec.Body.String())
 }
 
@@ -205,7 +205,7 @@ func (s *BindSseTestSuite) TestBindSseNR_NoInputWithRequest() {
 
 	rec := s.serveRequest(router, http.MethodGet, "/stream?filter=active", "", nil)
 
-	s.Equal("text/event-stream", rec.Header().Get("Content-Type"))
+	s.Equal(httpserver.ContentTypeEventStream, rec.Header().Get(httpserver.HeaderContentType))
 	s.Contains(rec.Body.String(), "event: filtered\n")
 	s.Contains(rec.Body.String(), "data: active\n")
 }

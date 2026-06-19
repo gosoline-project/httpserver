@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/gosoline-project/httpserver"
 	"github.com/gosoline-project/httpserver/auth"
 	authMocks "github.com/gosoline-project/httpserver/auth/mocks"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,7 @@ func getBasicJwtAuthMocks(t *testing.T, token string) (*authMocks.JwtTokenHandle
 	jwtTokenHandler := authMocks.NewJwtTokenHandler(t)
 
 	header := http.Header{}
-	header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+	header.Set(httpserver.HeaderAuthorization, fmt.Sprintf("Bearer %s", token))
 
 	request := &http.Request{
 		Header: header,

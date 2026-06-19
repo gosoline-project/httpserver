@@ -27,7 +27,7 @@ func ResolveClientIP(req *http.Request) (string, error) {
 		return "", fmt.Errorf("invalid remote address IP: %q", remoteAddr)
 	}
 
-	for _, headerName := range []string{"X-Forwarded-For", "X-Real-IP"} {
+	for _, headerName := range []string{HeaderXForwardedFor, HeaderXRealIP} {
 		if ip, valid := validateClientIPHeader(req.Header.Get(headerName), defaultTrustedCIDRs); valid {
 			return ip, nil
 		}

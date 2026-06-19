@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin/binding"
-	httpHeaders "github.com/go-http-utils/headers"
 	"github.com/go-resty/resty/v2"
 	moduleHttpserver "github.com/gosoline-project/httpserver"
 	"github.com/justtrackio/gosoline/pkg/cfg"
@@ -63,21 +62,21 @@ func (s *CompressedTestSuite) TestCompressed() []*moduleHttpserver.HttpserverTes
 			Method: http.MethodPost,
 			Url:    route,
 			Headers: map[string]string{
-				httpHeaders.ContentType:     "application/json",
-				httpHeaders.ContentEncoding: "gzip",
-				httpHeaders.AcceptEncoding:  "gzip",
+				moduleHttpserver.HeaderContentType:     moduleHttpserver.ContentTypeApplicationJson,
+				moduleHttpserver.HeaderContentEncoding: moduleHttpserver.HeaderValueGzip,
+				moduleHttpserver.HeaderAcceptEncoding:  moduleHttpserver.HeaderValueGzip,
 			},
 			Body:               buffer.Bytes(), // all routes should accept compressed requests
 			ExpectedStatusCode: http.StatusOK,
 			Assert: func(res *resty.Response) error {
 				// only first route should be compressed
 				if i == 0 {
-					s.Equal([]string{"gzip"}, res.Header()[httpHeaders.ContentEncoding])
+					s.Equal([]string{moduleHttpserver.HeaderValueGzip}, res.Header()[moduleHttpserver.HeaderContentEncoding])
 				} else {
-					s.Equal([]string(nil), res.Header()[httpHeaders.ContentEncoding])
+					s.Equal([]string(nil), res.Header()[moduleHttpserver.HeaderContentEncoding])
 				}
 
-				s.Equal([]string{"application/json; charset=utf-8"}, res.Header()[httpHeaders.ContentType])
+				s.Equal([]string{moduleHttpserver.ContentTypeJson}, res.Header()[moduleHttpserver.HeaderContentType])
 				s.Equal(expectedBody, string(res.Body()))
 
 				return nil

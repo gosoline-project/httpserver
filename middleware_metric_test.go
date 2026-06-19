@@ -1,4 +1,4 @@
-package httpserver
+package httpserver_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gosoline-project/httpserver"
 	httpserverMocks "github.com/gosoline-project/httpserver/mocks"
 	"github.com/justtrackio/gosoline/pkg/metric"
 	metricMocks "github.com/justtrackio/gosoline/pkg/metric/mocks"
@@ -28,10 +29,10 @@ func TestMetricMiddleware_WritesRejectedRequestMetrics(t *testing.T) {
 	recorder.EXPECT().TrackRequestCompleted(matcher.Context).Return().Once()
 	router := gin.New()
 	router.Use(func(c *gin.Context) {
-		metricMiddleware("api", c, writer, recorder)
+		httpserver.MetricMiddleware("api", c, writer, recorder)
 	})
 	router.Use(func(c *gin.Context) {
-		c.Request = markRequestRejected(c.Request)
+		c.Request = httpserver.MarkRequestRejected(c.Request)
 		c.AbortWithStatus(http.StatusTooManyRequests)
 	})
 	router.GET("/widgets/:id", func(c *gin.Context) {})
@@ -57,29 +58,29 @@ func TestMetricMiddleware_WritesRejectedRequestMetrics(t *testing.T) {
 }
 
 func TestGetMetricMiddlewareDefaults_IncludesRejectedRequestMetrics(t *testing.T) {
-	definition := Definition{
-		group:        &Router{},
-		httpMethod:   http.MethodGet,
-		relativePath: "/widgets/:id",
+	definition := httpserver.Definition{
+		Group:        &httpserver.Router{},
+		HttpMethod:   http.MethodGet,
+		RelativePath: "/widgets/:id",
 	}
 
-	defaults := getMetricMiddlewareDefaults("api", definition)
+	defaults := httpserver.GetMetricMiddlewareDefaults("api", definition)
 
 	require.Len(t, defaults, 4)
-	assertDefaultMetric(t, defaults[0], MetricHttpRequestCountPerRoute, metric.Dimensions{
+	assertDefaultMetric(t, defaults[0], httpserver.MetricHttpRequestCountPerRoute, metric.Dimensions{
 		"Method":     http.MethodGet,
 		"Path":       "/widgets/:id",
 		"ServerName": "api",
 	}, metric.KindDefault)
-	assertDefaultMetric(t, defaults[1], MetricHttpRequestsRejected, metric.Dimensions{
+	assertDefaultMetric(t, defaults[1], httpserver.MetricHttpRequestsRejected, metric.Dimensions{
 		"Method":     http.MethodGet,
 		"Path":       "/widgets/:id",
 		"ServerName": "api",
 	}, metric.KindDefault)
-	assertDefaultMetric(t, defaults[2], MetricHttpRequestsRejected, metric.Dimensions{
+	assertDefaultMetric(t, defaults[2], httpserver.MetricHttpRequestsRejected, metric.Dimensions{
 		"ServerName": "api",
 	}, metric.KindTotal)
-	assertDefaultMetric(t, defaults[3], MetricHttpRequestCount, metric.Dimensions{
+	assertDefaultMetric(t, defaults[3], httpserver.MetricHttpRequestCount, metric.Dimensions{
 		"ServerName": "api",
 	}, metric.KindDefault)
 }
@@ -88,7 +89,7 @@ func assertRejectedMetric(t *testing.T, datum *metric.Datum, dimensions metric.D
 	t.Helper()
 
 	assert.Equal(t, metric.PriorityHigh, datum.Priority)
-	assert.Equal(t, MetricHttpRequestsRejected, datum.MetricName)
+	assert.Equal(t, httpserver.MetricHttpRequestsRejected, datum.MetricName)
 	assert.Equal(t, metric.UnitCount, datum.Unit)
 	assert.Equal(t, dimensions, datum.Dimensions)
 	assert.Equal(t, 1.0, datum.Value)

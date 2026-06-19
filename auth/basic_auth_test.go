@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gosoline-project/httpserver"
 	"github.com/gosoline-project/httpserver/auth"
 	"github.com/justtrackio/gosoline/pkg/cfg"
 	"github.com/justtrackio/gosoline/pkg/log"
@@ -18,7 +19,7 @@ func getBasicAuthMocks(user string, password string) (log.Logger, *gin.Context) 
 	logger := logMocks.NewLoggerMock(logMocks.WithMockAll)
 
 	header := http.Header{}
-	header.Set("Authorization", fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", user, password)))))
+	header.Set(httpserver.HeaderAuthorization, fmt.Sprintf("Basic %s", base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf("%s:%s", user, password)))))
 
 	request := &http.Request{
 		Header: header,

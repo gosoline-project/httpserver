@@ -18,7 +18,7 @@ func newCorsConfig(pattern string) cfg.Config {
 			"default": map[string]any{
 				"cors": map[string]any{
 					"allowed_origin_pattern": pattern,
-					"allowed_headers":        []string{"Content-Type"},
+					"allowed_headers":        []string{httpserver.HeaderContentType},
 					"allowed_methods":        []string{"GET", "POST"},
 				},
 			},
@@ -45,8 +45,8 @@ func serveCorsPreflight(t *testing.T, router *gin.Engine, origin string) *httpte
 
 	req, err := http.NewRequest(http.MethodOptions, "/", http.NoBody)
 	require.NoError(t, err)
-	req.Header.Set("Origin", origin)
-	req.Header.Set("Access-Control-Request-Method", "GET")
+	req.Header.Set(httpserver.HeaderOrigin, origin)
+	req.Header.Set(httpserver.HeaderAccessControlRequestMethod, "GET")
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -58,19 +58,19 @@ func TestCors_AnchoredPattern_PreventsPartialMatch(t *testing.T) {
 	router := newCorsRouter(t, `https://example\.com`)
 	rec := serveCorsPreflight(t, router, "https://example.com.evil.com")
 
-	assert.Empty(t, rec.Header().Get("Access-Control-Allow-Origin"))
+	assert.Empty(t, rec.Header().Get(httpserver.HeaderAccessControlAllowOrigin))
 }
 
 func TestCors_AnchoredPattern_AllowsExactMatch(t *testing.T) {
 	router := newCorsRouter(t, `https://example\.com`)
 	rec := serveCorsPreflight(t, router, "https://example.com")
 
-	assert.Equal(t, "https://example.com", rec.Header().Get("Access-Control-Allow-Origin"))
+	assert.Equal(t, "https://example.com", rec.Header().Get(httpserver.HeaderAccessControlAllowOrigin))
 }
 
 func TestCors_AnchoredPattern_PreventsPrefixBypass(t *testing.T) {
 	router := newCorsRouter(t, `https://example\.com`)
 	rec := serveCorsPreflight(t, router, "evil.https://example.com")
 
-	assert.Empty(t, rec.Header().Get("Access-Control-Allow-Origin"))
+	assert.Empty(t, rec.Header().Get(httpserver.HeaderAccessControlAllowOrigin))
 }

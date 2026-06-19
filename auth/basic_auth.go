@@ -15,10 +15,8 @@ import (
 )
 
 const (
-	ByBasicAuth = "basicAuth"
-
-	headerBasicAuth = "Authorization"
-	AttributeUser   = "user"
+	ByBasicAuth   = "basicAuth"
+	AttributeUser = "user"
 )
 
 type basicAuthAuthenticator struct {
@@ -54,7 +52,7 @@ func NewBasicAuthHandler(config cfg.Config, logger log.Logger, name string) (gin
 			err = fmt.Errorf("the user credentials weren't valid nor was there an error")
 		}
 
-		ginCtx.Header("www-authenticate", fmt.Sprintf("Basic realm=%q", appId.Name))
+		ginCtx.Header(httpserver.HeaderWWWAuthenticate, fmt.Sprintf(httpserver.HeaderValueBasicRealmFormat, appId.Name))
 		ginCtx.JSON(http.StatusUnauthorized, gin.H{"err": err.Error()})
 		ginCtx.Abort()
 	}, nil
@@ -97,7 +95,7 @@ func (a *basicAuthAuthenticator) IsValid(ginCtx *gin.Context) (bool, error) {
 	var err error
 	var auth []byte
 
-	basicAuth := ginCtx.GetHeader(headerBasicAuth)
+	basicAuth := ginCtx.GetHeader(httpserver.HeaderAuthorization)
 
 	if basicAuth == "" {
 		return false, fmt.Errorf("no credentials provided")

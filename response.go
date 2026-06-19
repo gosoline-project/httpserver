@@ -8,10 +8,13 @@ import (
 
 // Response is the typed response returned by bound HTTP handlers.
 type Response interface {
+	ContentType() string
 	Body() ([]byte, error)
 	Header() http.Header
 	StatusCode() int
 }
+
+var _ Response = &response{}
 
 type response struct {
 	body       []byte
@@ -34,16 +37,24 @@ func NewResponse(options ...ResponseOption) *response {
 	return resp
 }
 
-func (j response) Body() ([]byte, error) {
-	return j.body, nil
+func (r response) ContentType() string {
+	if r.header == nil {
+		return ""
+	}
+
+	return r.header.Get("Content-Type")
 }
 
-func (j response) Header() http.Header {
-	return j.header
+func (r response) Body() ([]byte, error) {
+	return r.body, nil
 }
 
-func (j response) StatusCode() int {
-	return j.statusCode
+func (r response) Header() http.Header {
+	return r.header
+}
+
+func (r response) StatusCode() int {
+	return r.statusCode
 }
 
 // NewStatusResponse creates a response with only an HTTP status code.
@@ -57,12 +68,14 @@ func NewStatusResponse(statusCode int, options ...ResponseOption) *response {
 func NewTextResponse(text string, options ...ResponseOption) *response {
 	responseOptions := append([]ResponseOption{
 		WithBody([]byte(text)),
-		WithHeader("Content-Type", "text/plain; charset=utf-8"),
+		WithHeader(HeaderContentType, ContentTypeTextPlain),
 		WithStatusCode(http.StatusOK),
 	}, options...)
 
 	return NewResponse(responseOptions...)
 }
+
+var _ Response = &jsonResponse[string]{}
 
 type jsonResponse[T any] struct {
 	*response
@@ -72,7 +85,7 @@ type jsonResponse[T any] struct {
 // NewJsonResponse creates a JSON response with status 200 by default.
 func NewJsonResponse[T any](body T, options ...ResponseOption) *jsonResponse[T] {
 	header := make(http.Header)
-	header.Set("Content-Type", "application/json; charset=utf-8")
+	header.Set(HeaderContentType, ContentTypeJson)
 
 	resp := &jsonResponse[T]{
 		response: &response{

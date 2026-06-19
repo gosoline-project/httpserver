@@ -29,7 +29,7 @@ func ConcurrentRequestLimitMiddleware(settings ConcurrencySettings) gin.HandlerF
 
 			c.Next()
 		default:
-			c.Request = markRequestRejected(c.Request)
+			c.Request = MarkRequestRejected(c.Request)
 			writeRetryAfterHeader(c, settings.RetryAfter)
 			c.AbortWithStatusJSON(settings.OverloadStatusCode, gin.H{
 				"error": "server overloaded",
@@ -51,16 +51,18 @@ func writeRetryAfterHeader(c *gin.Context, retryAfter time.Duration) {
 		seconds = 1
 	}
 
-	c.Header("Retry-After", strconv.FormatInt(seconds, 10))
+	c.Header(HeaderRetryAfter, strconv.FormatInt(seconds, 10))
 }
 
 type rejectedRequestKey struct{}
 
-func markRequestRejected(request *http.Request) *http.Request {
+// MarkRequestRejected marks a request as rejected so metric middleware can record it.
+func MarkRequestRejected(request *http.Request) *http.Request {
 	return request.WithContext(context.WithValue(request.Context(), rejectedRequestKey{}, true))
 }
 
-func wasRequestRejected(request *http.Request) bool {
+// WasRequestRejected reports whether a request was marked as rejected.
+func WasRequestRejected(request *http.Request) bool {
 	isRejected, ok := request.Context().Value(rejectedRequestKey{}).(bool)
 
 	return ok && isRejected

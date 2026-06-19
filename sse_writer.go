@@ -64,16 +64,16 @@ const DefaultSseHeartbeatInterval = 5 * time.Second
 // does by default). For non-browser clients, ensure they send this Accept header, or
 // configure compression exclusions for your SSE endpoints.
 func NewSseWriter(ctx context.Context, writer SseResponseWriter) *SseWriter {
-	writer.Header().Set("Content-Type", "text/event-stream")
-	writer.Header().Set("Cache-Control", "no-cache")
-	writer.Header().Set("Connection", "keep-alive")
+	writer.Header().Set(HeaderContentType, ContentTypeEventStream)
+	writer.Header().Set(HeaderCacheControl, HeaderValueNoCache)
+	writer.Header().Set(HeaderConnection, HeaderValueKeepAlive)
 
 	// Warn if gzip is active (should not happen if client sent Accept: text/event-stream)
 	// We delete the Content-Encoding header as a safety measure, though ideally the gzip
 	// middleware should not have activated in the first place.
-	if writer.Header().Get("Content-Encoding") == "gzip" {
-		writer.Header().Del("Content-Encoding")
-		writer.Header().Del("Vary")
+	if writer.Header().Get(HeaderContentEncoding) == HeaderValueGzip {
+		writer.Header().Del(HeaderContentEncoding)
+		writer.Header().Del(HeaderVary)
 		// Note: The underlying gzip writer may still be active. This is a best-effort fix.
 		// Properly exclude SSE paths from compression via middleware configuration.
 	}

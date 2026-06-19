@@ -90,7 +90,7 @@ func decompressionFn(c *gin.Context) {
 		sizeData: sizeData{
 			size: readUncompressedBytes,
 		},
-		contentEncoding: "gzip",
+		contentEncoding: HeaderValueGzip,
 	})
 }
 
@@ -106,7 +106,7 @@ func recordRequestSize(c *gin.Context) {
 }
 
 func recordResponseSize(c *gin.Context) {
-	if c.Writer.Header().Get("Content-Encoding") != "gzip" {
+	if c.Writer.Header().Get(HeaderContentEncoding) != HeaderValueGzip {
 		c.Next()
 
 		return
@@ -119,7 +119,7 @@ func recordResponseSize(c *gin.Context) {
 		sizeData: sizeData{
 			size: writtenBytes,
 		},
-		contentEncoding: "gzip",
+		contentEncoding: HeaderValueGzip,
 	})
 
 	c.Next()

@@ -41,13 +41,13 @@ func NewLoggingMiddlewareWithInterfaces(logger log.Logger, settings LoggingSetti
 		reqCtx = log.InitContext(reqCtx)
 		reqCtx = reqctx.New(reqCtx)
 
-		if requestId := ginCtx.Request.Header.Get("X-Request-Id"); requestId != "" {
+		if requestId := ginCtx.Request.Header.Get(HeaderRequestId); requestId != "" {
 			reqCtx = log.MutateGlobalContextFields(reqCtx, map[string]any{
 				"request_id": requestId,
 			})
 		}
 
-		if sessionId := ginCtx.Request.Header.Get("X-Session-Id"); sessionId != "" {
+		if sessionId := ginCtx.Request.Header.Get(HeaderSessionId); sessionId != "" {
 			reqCtx = log.MutateGlobalContextFields(reqCtx, map[string]any{
 				"session_id": sessionId,
 			})

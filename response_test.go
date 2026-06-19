@@ -55,7 +55,7 @@ func TestResponseCases(t *testing.T) {
 			build:         func() Response { return NewTextResponse("plain") },
 			expectBody:    "plain",
 			expectStatus:  http.StatusOK,
-			expectHeaders: map[string]string{"Content-Type": "text/plain; charset=utf-8"},
+			expectHeaders: map[string]string{HeaderContentType: ContentTypeTextPlain},
 		},
 		{
 			name: "text response with options",
@@ -64,14 +64,14 @@ func TestResponseCases(t *testing.T) {
 			},
 			expectBody:    "plain",
 			expectStatus:  http.StatusCreated,
-			expectHeaders: map[string]string{"Content-Type": "text/plain; charset=utf-8", "X-Test": "abc"},
+			expectHeaders: map[string]string{HeaderContentType: ContentTypeTextPlain, "X-Test": "abc"},
 		},
 		{
 			name:          "json response",
 			build:         func() Response { return NewJsonResponse(sample{Name: "alice", Age: 30}) },
 			expectBody:    `{"name":"alice","age":30}`,
 			expectStatus:  http.StatusOK,
-			expectHeaders: map[string]string{"Content-Type": "application/json; charset=utf-8"},
+			expectHeaders: map[string]string{HeaderContentType: ContentTypeJson},
 		},
 		{
 			name: "json response with options",
@@ -93,7 +93,7 @@ func TestResponseCases(t *testing.T) {
 		switch {
 		case tc.expectBody == "":
 			assert.Equal(t, "", string(b))
-		case resp.Header().Get("Content-Type") == "application/json; charset=utf-8":
+		case resp.Header().Get(HeaderContentType) == ContentTypeJson:
 			assert.JSONEq(t, tc.expectBody, string(b))
 		default:
 			assert.Equal(t, tc.expectBody, string(b))

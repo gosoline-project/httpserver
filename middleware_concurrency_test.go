@@ -102,7 +102,7 @@ func (s *MiddlewareConcurrencyTestSuite) TestRejectsWhenLimitReached() {
 	router.ServeHTTP(recorder, req)
 
 	s.Equal(http.StatusTooManyRequests, recorder.Code)
-	s.Equal("2", recorder.Header().Get("Retry-After"))
+	s.Equal("2", recorder.Header().Get(httpserver.HeaderRetryAfter))
 	s.JSONEq(`{"error":"server overloaded"}`, recorder.Body.String())
 
 	close(release)

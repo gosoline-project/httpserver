@@ -64,7 +64,7 @@ func (s *HttpServerBindTestSuite) TestJson() *httpserver.HttpserverTestCase {
 		Method: http.MethodPost,
 		Url:    "/json",
 		Headers: map[string]string{
-			"Content-Type": "application/json",
+			httpserver.HeaderContentType: httpserver.ContentTypeApplicationJson,
 		},
 		Body:               `{"id": 1, "name": "alice"}`,
 		ExpectedStatusCode: http.StatusOK,
@@ -96,7 +96,7 @@ func (s *HttpServerBindTestSuite) TestMixed() *httpserver.HttpserverTestCase {
 		Method: http.MethodPost,
 		Url:    "/mixed/3",
 		Headers: map[string]string{
-			"Content-Type": "application/json",
+			httpserver.HeaderContentType: httpserver.ContentTypeApplicationJson,
 		},
 		Body:               `{"name": "alice"}`,
 		ExpectedStatusCode: http.StatusOK,

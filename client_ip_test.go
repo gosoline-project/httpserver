@@ -18,27 +18,27 @@ func TestResolveClientIP(t *testing.T) {
 		},
 		"x real ip": {
 			mutate: func(req *http.Request) {
-				req.Header.Del("X-Forwarded-For")
+				req.Header.Del(HeaderXForwardedFor)
 			},
 			want: "10.10.10.10",
 		},
 		"single x forwarded for": {
 			mutate: func(req *http.Request) {
-				req.Header.Set("X-Forwarded-For", "30.30.30.30  ")
+				req.Header.Set(HeaderXForwardedFor, "30.30.30.30  ")
 			},
 			want: "30.30.30.30",
 		},
 		"remote addr fallback": {
 			mutate: func(req *http.Request) {
-				req.Header.Del("X-Forwarded-For")
-				req.Header.Del("X-Real-IP")
+				req.Header.Del(HeaderXForwardedFor)
+				req.Header.Del(HeaderXRealIP)
 			},
 			want: "40.40.40.40",
 		},
 		"remote addr without port": {
 			mutate: func(req *http.Request) {
-				req.Header.Del("X-Forwarded-For")
-				req.Header.Del("X-Real-IP")
+				req.Header.Del(HeaderXForwardedFor)
+				req.Header.Del(HeaderXRealIP)
 				req.RemoteAddr = "50.50.50.50"
 			},
 			wantErr: true,
@@ -51,14 +51,14 @@ func TestResolveClientIP(t *testing.T) {
 		},
 		"x forwarded for has non-ip element": {
 			mutate: func(req *http.Request) {
-				req.Header.Set("X-Forwarded-For", " blah ")
+				req.Header.Set(HeaderXForwardedFor, " blah ")
 			},
 			want: "10.10.10.10",
 		},
 		"x forwarded for invalid falls back to x real ip": {
 			mutate: func(req *http.Request) {
-				req.Header.Set("X-Forwarded-For", " blah ")
-				req.Header.Set("X-Real-IP", " 10.10.10.10 ")
+				req.Header.Set(HeaderXForwardedFor, " blah ")
+				req.Header.Set(HeaderXRealIP, " 10.10.10.10 ")
 			},
 			want: "10.10.10.10",
 		},
@@ -91,8 +91,8 @@ func requestForClientIPTest(t *testing.T) *http.Request {
 	req, err := http.NewRequest(http.MethodPost, "/", http.NoBody)
 	assert.NoError(t, err)
 
-	req.Header.Set("X-Real-IP", " 10.10.10.10  ")
-	req.Header.Set("X-Forwarded-For", "  20.20.20.20, 30.30.30.30")
+	req.Header.Set(HeaderXRealIP, " 10.10.10.10  ")
+	req.Header.Set(HeaderXForwardedFor, "  20.20.20.20, 30.30.30.30")
 	req.Header.Set("X-Appengine-Remote-Addr", "50.50.50.50")
 	req.Header.Set("CF-Connecting-IP", "60.60.60.60")
 	req.Header.Set("Fly-Client-IP", "70.70.70.70")

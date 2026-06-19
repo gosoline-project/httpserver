@@ -148,10 +148,10 @@ func (s *loggingMiddlewareTestSuite) TestDefaultError() {
 func TestLogFields(t *testing.T) {
 	ginCtx := buildRequest()
 	ginCtx.Request.Host = "host.io"
-	ginCtx.Request.Header.Set("User-Agent", "test/User-Agent")
-	ginCtx.Request.Header.Set("Referer", "referer")
-	ginCtx.Request.Header.Set("X-Request-Id", "request123")
-	ginCtx.Request.Header.Set("X-Session-Id", "session123")
+	ginCtx.Request.Header.Set(httpserver.HeaderUserAgent, "test/User-Agent")
+	ginCtx.Request.Header.Set(httpserver.HeaderReferer, "referer")
+	ginCtx.Request.Header.Set(httpserver.HeaderRequestId, "request123")
+	ginCtx.Request.Header.Set(httpserver.HeaderSessionId, "session123")
 	ginCtx.Request.RemoteAddr = "127.0.0.1:80"
 	ginCtx.Status(http.StatusOK)
 

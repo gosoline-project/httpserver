@@ -13,6 +13,10 @@ import (
 )
 
 type (
+	Handler[I any] interface {
+		Handle(ctx context.Context, input *I) (Response, error)
+	}
+	HandlerFunc[I any] func(ctx context.Context, input *I) (Response, error)
 	// RouterFactory defines routes on the provided router during server startup.
 	RouterFactory func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router) error
 	// MiddlewareFactory creates a Gin middleware from application dependencies and server settings.
@@ -21,16 +25,16 @@ type (
 
 // Definition stores one route registered on a Router.
 type Definition struct {
-	group        *Router
-	httpMethod   string
-	relativePath string
-	handlers     []gin.HandlerFunc
+	Group        *Router
+	HttpMethod   string
+	RelativePath string
+	Handlers     []gin.HandlerFunc
 }
 
 func (d *Definition) getAbsolutePath() string {
-	groupPath := d.group.getAbsolutePath()
+	groupPath := d.Group.getAbsolutePath()
 
-	absolutePath := fmt.Sprintf("%s/%s", groupPath, d.relativePath)
+	absolutePath := fmt.Sprintf("%s/%s", groupPath, d.RelativePath)
 	absolutePath = trimRightPath(absolutePath)
 
 	return removeDuplicates(absolutePath)
@@ -88,10 +92,10 @@ func (d *Router) Handle(httpMethod, relativePath string, handlers ...gin.Handler
 	relativePath = trimRightPath(relativePath)
 
 	d.routes = append(d.routes, Definition{
-		group:        d,
-		httpMethod:   httpMethod,
-		relativePath: relativePath,
-		handlers:     handlers,
+		Group:        d,
+		HttpMethod:   httpMethod,
+		RelativePath: relativePath,
+		Handlers:     handlers,
 	})
 }
 
@@ -167,10 +171,10 @@ func buildRouter(ctx context.Context, config cfg.Config, logger log.Logger, sett
 	}
 
 	for _, d := range definitions.routes {
-		handlers := make([]gin.HandlerFunc, 0, len(d.handlers)+1)
-		handlers = append(handlers, d.handlers...)
+		handlers := make([]gin.HandlerFunc, 0, len(d.Handlers)+1)
+		handlers = append(handlers, d.Handlers...)
 
-		grp.Handle(d.httpMethod, d.relativePath, handlers...)
+		grp.Handle(d.HttpMethod, d.RelativePath, handlers...)
 	}
 
 	definitionList = append(definitionList, definitions.routes...)

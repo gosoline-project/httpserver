@@ -30,18 +30,19 @@ func NewMetricMiddleware(name string, metricRecorder ServerMetricRecorder) (midd
 	writer := metric.NewWriter()
 
 	middleware = func(ginCtx *gin.Context) {
-		metricMiddleware(name, ginCtx, writer, metricRecorder)
+		MetricMiddleware(name, ginCtx, writer, metricRecorder)
 	}
 
 	setupHandler = func(definitions []Definition) {
-		defaults := getMetricMiddlewareDefaults(name, definitions...)
+		defaults := GetMetricMiddlewareDefaults(name, definitions...)
 		writer = metric.NewWriter(defaults...)
 	}
 
 	return middleware, setupHandler
 }
 
-func metricMiddleware(name string, ginCtx *gin.Context, writer metric.Writer, metricRecorder ServerMetricRecorder) {
+// MetricMiddleware records request metrics for a Gin context.
+func MetricMiddleware(name string, ginCtx *gin.Context, writer metric.Writer, metricRecorder ServerMetricRecorder) {
 	start := time.Now()
 	method := ginCtx.Request.Method
 
@@ -95,7 +96,7 @@ func metricMiddleware(name string, ginCtx *gin.Context, writer metric.Writer, me
 		},
 	}))
 
-	if wasRequestRejected(ginCtx.Request) {
+	if WasRequestRejected(ginCtx.Request) {
 		writer.Write(ginCtx.Request.Context(), metric.Data{
 			{
 				Priority:   metric.PriorityHigh,
@@ -140,14 +141,15 @@ func createMetricsWithDimensions(metrics metric.Data, dimensionsByMetricSuffix m
 	}))
 }
 
-func getMetricMiddlewareDefaults(name string, definitions ...Definition) metric.Data {
+// GetMetricMiddlewareDefaults returns the default metric data for registered HTTP routes.
+func GetMetricMiddlewareDefaults(name string, definitions ...Definition) metric.Data {
 	return slices.Concat(
 		funk.Map(definitions, func(definition Definition) *metric.Datum {
 			return &metric.Datum{
 				Priority:   metric.PriorityHigh,
 				MetricName: MetricHttpRequestCountPerRoute,
 				Dimensions: metric.Dimensions{
-					"Method":     definition.httpMethod,
+					"Method":     definition.HttpMethod,
 					"Path":       definition.getAbsolutePath(),
 					"ServerName": name,
 				},
@@ -160,7 +162,7 @@ func getMetricMiddlewareDefaults(name string, definitions ...Definition) metric.
 				Priority:   metric.PriorityHigh,
 				MetricName: MetricHttpRequestsRejected,
 				Dimensions: metric.Dimensions{
-					"Method":     definition.httpMethod,
+					"Method":     definition.HttpMethod,
 					"Path":       definition.getAbsolutePath(),
 					"ServerName": name,
 				},

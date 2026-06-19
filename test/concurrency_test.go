@@ -81,7 +81,7 @@ func (s *ConcurrencyTestSuite) TestRejectsRequestWhenConcurrentRequestLimitIsRea
 	res, err := client.R().Get("/ok")
 	s.Require().NoError(err)
 	s.Equal(netHttp.StatusTooManyRequests, res.StatusCode())
-	s.Equal("1", res.Header().Get("Retry-After"))
+	s.Equal("1", res.Header().Get(moduleHttpserver.HeaderRetryAfter))
 	s.JSONEq(`{"error":"server overloaded"}`, string(res.Body()))
 
 	s.releaseHandler.Signal()

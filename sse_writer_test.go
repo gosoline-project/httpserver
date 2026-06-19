@@ -40,9 +40,9 @@ func (s *SseWriterTestSuite) TestSend() {
 	s.NoError(err)
 
 	// Check headers
-	s.Equal("text/event-stream", s.rec.Header().Get("Content-Type"))
-	s.Equal("no-cache", s.rec.Header().Get("Cache-Control"))
-	s.Equal("keep-alive", s.rec.Header().Get("Connection"))
+	s.Equal(httpserver.ContentTypeEventStream, s.rec.Header().Get(httpserver.HeaderContentType))
+	s.Equal(httpserver.HeaderValueNoCache, s.rec.Header().Get(httpserver.HeaderCacheControl))
+	s.Equal(httpserver.HeaderValueKeepAlive, s.rec.Header().Get(httpserver.HeaderConnection))
 
 	// Check body
 	expected := "data: hello world\n\n"
@@ -142,22 +142,22 @@ func (s *SseWriterTestSuite) TestMultipleEvents() {
 
 func (s *SseWriterTestSuite) TestNoCorsHeaders() {
 	// Verify CORS headers are NOT set
-	s.Empty(s.rec.Header().Get("Access-Control-Allow-Origin"))
-	s.Empty(s.rec.Header().Get("Access-Control-Expose-Headers"))
+	s.Empty(s.rec.Header().Get(httpserver.HeaderAccessControlAllowOrigin))
+	s.Empty(s.rec.Header().Get(httpserver.HeaderAccessControlExposeHeaders))
 }
 
 func (s *SseWriterTestSuite) TestGzipDetection() {
 	// Create a new recorder with gzip headers already set
 	rec := httptest.NewRecorder()
-	rec.Header().Set("Content-Encoding", "gzip")
-	rec.Header().Set("Vary", "Accept-Encoding")
+	rec.Header().Set(httpserver.HeaderContentEncoding, httpserver.HeaderValueGzip)
+	rec.Header().Set(httpserver.HeaderVary, httpserver.HeaderAcceptEncoding)
 
 	writer := httpserver.NewSseWriter(s.ctx, rec)
 	defer writer.Close()
 
 	// Verify gzip headers are removed
-	s.Empty(rec.Header().Get("Content-Encoding"))
-	s.Empty(rec.Header().Get("Vary"))
+	s.Empty(rec.Header().Get(httpserver.HeaderContentEncoding))
+	s.Empty(rec.Header().Get(httpserver.HeaderVary))
 }
 
 func (s *SseWriterTestSuite) TestBrowserEventSourceCompatibility() {

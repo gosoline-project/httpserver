@@ -97,7 +97,7 @@ func TestMaxBodySizeMiddleware_GzipBodyExceedsDecompressedLimit(t *testing.T) {
 		var err error
 		var reader io.ReadCloser
 
-		if c.GetHeader("Content-Encoding") == "gzip" {
+		if c.GetHeader(httpserver.HeaderContentEncoding) == httpserver.HeaderValueGzip {
 			if reader, _, err = httpserver.NewGZipBodyReader(c.Request.Body); err != nil {
 				c.AbortWithStatus(http.StatusBadRequest)
 
@@ -105,7 +105,7 @@ func TestMaxBodySizeMiddleware_GzipBodyExceedsDecompressedLimit(t *testing.T) {
 			}
 
 			c.Request.Body = reader
-			c.Request.Header.Del("Content-Encoding")
+			c.Request.Header.Del(httpserver.HeaderContentEncoding)
 		}
 
 		c.Next()
@@ -115,7 +115,7 @@ func TestMaxBodySizeMiddleware_GzipBodyExceedsDecompressedLimit(t *testing.T) {
 
 	req, err := http.NewRequest(http.MethodPost, "/", &compressed)
 	require.NoError(t, err)
-	req.Header.Set("Content-Encoding", "gzip")
+	req.Header.Set(httpserver.HeaderContentEncoding, httpserver.HeaderValueGzip)
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)

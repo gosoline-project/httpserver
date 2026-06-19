@@ -13,10 +13,7 @@ import (
 	"github.com/justtrackio/gosoline/pkg/log"
 )
 
-const (
-	ByJWT         = "jwtAuth"
-	headerJwtAuth = "Authorization"
-)
+const ByJWT = "jwtAuth"
 
 type jwtAuthenticator struct {
 	jwtTokenHandler JwtTokenHandler
@@ -72,7 +69,7 @@ func (a *jwtAuthenticator) IsValid(ginCtx *gin.Context) (bool, error) {
 	var isValid bool
 	var token *jwt.Token
 
-	bearerAuth := ginCtx.GetHeader(headerJwtAuth)
+	bearerAuth := ginCtx.GetHeader(httpserver.HeaderAuthorization)
 
 	if bearerAuth == "" {
 		return false, fmt.Errorf("no credentials provided")

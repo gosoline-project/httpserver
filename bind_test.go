@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gosoline-project/httpserver"
+	"github.com/gosoline-project/httpserver/mocks"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -37,32 +38,6 @@ type bindHeaderInput struct {
 type bindFormInput struct {
 	Name  string `form:"name"`
 	Email string `form:"email"`
-}
-
-type trackingResponse struct {
-	statusCode int
-	header     http.Header
-	body       []byte
-	bodyCalled bool
-	bodyErr    error
-}
-
-func (r *trackingResponse) Body() ([]byte, error) {
-	r.bodyCalled = true
-
-	if r.bodyErr != nil {
-		return nil, r.bodyErr
-	}
-
-	return r.body, nil
-}
-
-func (r *trackingResponse) Header() http.Header {
-	return r.header
-}
-
-func (r *trackingResponse) StatusCode() int {
-	return r.statusCode
 }
 
 type failOnWriteResponseWriter struct {
@@ -114,7 +89,7 @@ func TestBindCases(t *testing.T) {
 			method:       http.MethodPost,
 			path:         "/json",
 			body:         `{"name":"alice"}`,
-			headers:      map[string]string{"Content-Type": "application/json"},
+			headers:      map[string]string{httpserver.HeaderContentType: httpserver.ContentTypeApplicationJson},
 			expectedCode: http.StatusOK,
 			expectedBody: `{"name":"alice"}`,
 		},
@@ -128,7 +103,7 @@ func TestBindCases(t *testing.T) {
 			method:       http.MethodPost,
 			path:         "/json",
 			body:         `{"name":`,
-			headers:      map[string]string{"Content-Type": "application/json"},
+			headers:      map[string]string{httpserver.HeaderContentType: httpserver.ContentTypeApplicationJson},
 			expectedCode: http.StatusBadRequest,
 			expectedBody: `{"err": "bind error: json: unexpected EOF"}`,
 		},
@@ -142,7 +117,7 @@ func TestBindCases(t *testing.T) {
 			method:       http.MethodGet,
 			path:         "/obj/7",
 			body:         `{}`,
-			headers:      map[string]string{"Content-Type": "application/json"},
+			headers:      map[string]string{httpserver.HeaderContentType: httpserver.ContentTypeApplicationJson},
 			expectedCode: http.StatusOK,
 			expectedBody: `{"id":7}`,
 		},
@@ -156,7 +131,7 @@ func TestBindCases(t *testing.T) {
 			method:       http.MethodPost,
 			path:         "/mixed/3",
 			body:         `{"name":"bob"}`,
-			headers:      map[string]string{"Content-Type": "application/json"},
+			headers:      map[string]string{httpserver.HeaderContentType: httpserver.ContentTypeApplicationJson},
 			expectedCode: http.StatusOK,
 			expectedBody: `{"id":3,"name":"bob"}`,
 		},
@@ -170,7 +145,7 @@ func TestBindCases(t *testing.T) {
 			method:       http.MethodPost,
 			path:         "/r",
 			body:         `{"name":"alice"}`,
-			headers:      map[string]string{"Content-Type": "application/json"},
+			headers:      map[string]string{httpserver.HeaderContentType: httpserver.ContentTypeApplicationJson},
 			expectedCode: http.StatusOK,
 			expectedBody: `{"method":"POST"}`,
 		},
@@ -232,7 +207,7 @@ func TestBindCases(t *testing.T) {
 			method:       http.MethodGet,
 			path:         "/header",
 			body:         `{}`,
-			headers:      map[string]string{"Content-Type": "application/json", "Authorization": "Bearer token"},
+			headers:      map[string]string{httpserver.HeaderContentType: httpserver.ContentTypeApplicationJson, httpserver.HeaderAuthorization: "Bearer token"},
 			expectedCode: http.StatusOK,
 			expectedBody: `{"auth":"Bearer token"}`,
 		},
@@ -246,7 +221,7 @@ func TestBindCases(t *testing.T) {
 			method:       http.MethodPost,
 			path:         "/form",
 			body:         "name=alice&email=alice%40example.com",
-			headers:      map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
+			headers:      map[string]string{httpserver.HeaderContentType: httpserver.ContentTypeFormURLEncoded},
 			expectedCode: http.StatusOK,
 			expectedBody: `{"Name":"alice","Email":"alice@example.com"}`,
 		},
@@ -260,7 +235,7 @@ func TestBindCases(t *testing.T) {
 			method:       http.MethodPost,
 			path:         "/searchform?search=golang",
 			body:         "page=2",
-			headers:      map[string]string{"Content-Type": "application/x-www-form-urlencoded"},
+			headers:      map[string]string{httpserver.HeaderContentType: httpserver.ContentTypeFormURLEncoded},
 			expectedCode: http.StatusOK,
 			expectedBody: `{"Search":"golang","Page":2}`,
 		},
@@ -307,7 +282,7 @@ func TestBindReportsBindErrorType(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest(http.MethodPost, "/json", strings.NewReader(`{"name":`))
-	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set(httpserver.HeaderContentType, httpserver.ContentTypeApplicationJson)
 	recorder := httptest.NewRecorder()
 
 	r.ServeHTTP(recorder, req)
@@ -345,16 +320,13 @@ func TestBindHandleResponseSkipsBodyHandlingForBodylessResponses(t *testing.T) {
 			writer := &failOnWriteResponseWriter{ResponseWriter: ginCtx.Writer}
 			ginCtx.Writer = writer
 
-			response := &trackingResponse{
-				statusCode: tc.statusCode,
-				header:     http.Header{"X-Test": []string{"set"}},
-				body:       []byte("should not be used"),
-				bodyErr:    errors.New("body should not be read"),
-			}
+			response := mocks.NewResponse(t)
+			response.EXPECT().StatusCode().Return(tc.statusCode).Once()
+			response.EXPECT().Header().Return(http.Header{"X-Test": []string{"set"}}).Once()
 
 			err := httpserver.BindHandleResponse(response, ginCtx)
 			assert.NoError(t, err)
-			assert.False(t, response.bodyCalled)
+			response.AssertNotCalled(t, "Body")
 			assert.Equal(t, 0, writer.writeCalls)
 			assert.Equal(t, tc.statusCode, recorder.Code)
 			assert.Empty(t, recorder.Body.String())

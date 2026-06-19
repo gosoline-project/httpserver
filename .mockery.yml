@@ -1,0 +1,16 @@
+all: false
+dir: "{{.InterfaceDir}}/mocks"
+filename: "{{.InterfaceName}}.go"
+force-file-write: true
+formatter: goimports
+log-level: info
+pkgname: mocks
+structname: "{{.InterfaceName}}"
+template: testify
+template-data:
+  unroll-variadic: true
+packages:
+  github.com/gosoline-project/httpserver:
+    config:
+      all: true
+      recursive: true

@@ -147,7 +147,7 @@ func NewConnectionLifeCycleInterceptor(connectionLifeCycleAdvisor ConnectionLife
 		if connectionLifeCycleAdvisor.ShouldCloseConnection(remoteAddr, c.Request.Header) {
 			// This works for both HTTP/1.1 and HTTP/2 connections.
 			// see: https://github.com/golang/go/issues/20977
-			c.Header("Connection", "close")
+			c.Header(HeaderConnection, HeaderValueClose)
 		}
 
 		c.Next()
