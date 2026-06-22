@@ -26,7 +26,7 @@ func TestRouterWithBindCases(t *testing.T) {
 			setup: func(router *gin.Engine) *http.Request {
 				router.POST("/json/:id", httpserver.Bind(h.HandleWithUri))
 
-				return httptest.NewRequest(http.MethodPost, "/json/1", nil)
+				return httptest.NewRequest(http.MethodPost, "/json/1", http.NoBody)
 			},
 			expectedBody: "hello 1",
 		},
@@ -59,7 +59,7 @@ func TestRouterWithBindCases(t *testing.T) {
 			setup: func(router *gin.Engine) *http.Request {
 				router.GET("/search", httpserver.Bind(h.HandleWithQuery))
 
-				return httptest.NewRequest(http.MethodGet, "/search?search=golang&page=3", nil)
+				return httptest.NewRequest(http.MethodGet, "/search?search=golang&page=3", http.NoBody)
 			},
 			expectedBody: "search golang page 3",
 		},
@@ -68,7 +68,7 @@ func TestRouterWithBindCases(t *testing.T) {
 			setup: func(router *gin.Engine) *http.Request {
 				router.GET("/header", httpserver.Bind(h.HandleWithHeader))
 
-				req := httptest.NewRequest(http.MethodGet, "/header", nil)
+				req := httptest.NewRequest(http.MethodGet, "/header", http.NoBody)
 				req.Header.Set(httpserver.HeaderAuthorization, "Bearer token")
 
 				return req
@@ -126,8 +126,7 @@ type HandlerInputForm struct {
 	Email string `form:"email"`
 }
 
-type Handler struct {
-}
+type Handler struct{}
 
 func (h *Handler) HandleWithUri(ctx context.Context, input *HandlerInputUri) (httpserver.Response, error) {
 	return httpserver.NewTextResponse(fmt.Sprintf("hello %d", input.Id)), nil
