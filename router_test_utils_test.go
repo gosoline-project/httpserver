@@ -91,7 +91,7 @@ func TestRouterWithBindCases(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			response := httpserver.RunRouteHandleTest(t.Context(), tc.setup)
+			response := httpserver.RunRouteHandleTest(tc.setup)
 
 			assert.Equal(t, http.StatusOK, response.Code)
 			assert.Equal(t, tc.expectedBody, response.Body.String())

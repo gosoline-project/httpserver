@@ -292,3 +292,16 @@ func hasBodylessResponse(request *http.Request, statusCode int) bool {
 
 	return statusCode >= 100 && statusCode < 200 || statusCode == http.StatusNoContent || statusCode == http.StatusNotModified
 }
+
+// NoBodyBinding is a no-op binder for handlers that must not bind the request body.
+// Pass it explicitly to prevent automatic body binding based on the request
+// content type or input tags.
+type NoBodyBinding struct{}
+
+func (NoBodyBinding) Name() string {
+	return "noBody"
+}
+
+func (NoBodyBinding) Bind(_ *http.Request, _ any) error {
+	return nil
+}
