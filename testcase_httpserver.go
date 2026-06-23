@@ -106,17 +106,21 @@ func runTestCaseHttpserver(s suite.TestingSuite, testCase func(suite suite.Testi
 
 		routerFactory := httpServerRouterAware.SetupHttpServerRouter()
 
-		//if err := environment.Config().Option(cfg.WithConfigMap(map[string]any{
-		//	"httpserver": map[string]any{
-		//		"default": map[string]any{
-		//			"port": "0",
-		//		},
-		//	},
-		//})); err != nil {
-		//	assert.FailNow(t, err.Error(), "can not configure test http server port")
-		//
-		//	return
-		//}
+		configOverrides := []cfg.Option{
+			cfg.WithConfigMap(map[string]any{
+				"httpserver": map[string]any{
+					"default": map[string]any{
+						"port": "0",
+					},
+				},
+			}),
+		}
+
+		if err := environment.Config().Option(configOverrides...); err != nil {
+			assert.FailNow(t, err.Error(), "can not apply configuration options to environment")
+
+			return
+		}
 
 		suite.RunTestCaseApplication(t, s, suiteConf, environment, func(app suite.AppUnderTest) {
 			var err error
@@ -133,13 +137,6 @@ func runTestCaseHttpserver(s suite.TestingSuite, testCase func(suite suite.Testi
 
 			testCase(s, app, client)
 		}, []suite.Option{
-			suite.WithConfigMap(map[string]any{
-				"httpserver": map[string]any{
-					"default": map[string]any{
-						"port": "0",
-					},
-				},
-			}),
 			suite.WithModule("api", func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
 				var err error
 				var module kernel.Module
