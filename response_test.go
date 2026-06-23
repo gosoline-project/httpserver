@@ -37,11 +37,11 @@ func TestResponseCases(t *testing.T) {
 			expectHeaders: map[string]string{"X-Test": "abc"},
 		},
 		{
-			name:          "status response",
+			name:          "status response with error",
 			build:         func() Response { return NewStatusResponse(http.StatusNotFound) },
-			expectBody:    "",
+			expectBody:    "Not Found",
 			expectStatus:  http.StatusNotFound,
-			expectHeaders: map[string]string{},
+			expectHeaders: map[string]string{HeaderContentType: ContentTypeTextPlain},
 		},
 		{
 			name:          "status response with options",

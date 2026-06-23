@@ -57,9 +57,17 @@ func (r response) StatusCode() int {
 	return r.statusCode
 }
 
-// NewStatusResponse creates a response with only an HTTP status code.
+// NewStatusResponse creates a response with an HTTP status code. For client or
+// server error responses, it includes the standard status text as plain-text body.
 func NewStatusResponse(statusCode int, options ...ResponseOption) *response {
 	responseOptions := append([]ResponseOption{WithStatusCode(statusCode)}, options...)
+
+	if statusCode >= http.StatusBadRequest {
+		responseOptions = append([]ResponseOption{
+			WithBody([]byte(http.StatusText(statusCode))),
+			WithHeader(HeaderContentType, ContentTypeTextPlain),
+		}, responseOptions...)
+	}
 
 	return NewResponse(responseOptions...)
 }
