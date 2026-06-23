@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/justtrackio/gosoline/pkg/validation"
 )
 
 const (
@@ -67,6 +68,10 @@ func GetErrorStatusCode(err error) int {
 	var errWithStatus ErrorWithStatus
 	if errors.As(err, &errWithStatus) {
 		return errWithStatus.StatusCode()
+	}
+
+	if validation.IsValidationError(err) {
+		return http.StatusBadRequest
 	}
 
 	return http.StatusInternalServerError
