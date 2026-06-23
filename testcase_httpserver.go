@@ -106,26 +106,20 @@ func runTestCaseHttpserver(s suite.TestingSuite, testCase func(suite suite.Testi
 
 		routerFactory := httpServerRouterAware.SetupHttpServerRouter()
 
-		extraOptions := []suite.Option{
-			suite.WithModule("api", func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
-				var err error
-				var module kernel.Module
-
-				if module, err = NewServer("default", routerFactory)(ctx, config, logger); err != nil {
-					return nil, fmt.Errorf("failed to create test http server: %w", err)
-				}
-
-				server = module.(*HttpServer)
-
-				return server, nil
-			}),
-			suite.WithConfigMap(map[string]any{
+		configOverrides := []cfg.Option{
+			cfg.WithConfigMap(map[string]any{
 				"httpserver": map[string]any{
 					"default": map[string]any{
-						"port": 0,
+						"port": "0",
 					},
 				},
 			}),
+		}
+
+		if err := environment.Config().Option(configOverrides...); err != nil {
+			assert.FailNow(t, err.Error(), "can not apply configuration options to environment")
+
+			return
 		}
 
 		suite.RunTestCaseApplication(t, s, suiteConf, environment, func(app suite.AppUnderTest) {
@@ -142,6 +136,20 @@ func runTestCaseHttpserver(s suite.TestingSuite, testCase func(suite suite.Testi
 			client := resty.New().SetBaseURL(url)
 
 			testCase(s, app, client)
-		}, extraOptions...)
+		}, []suite.Option{
+			suite.WithModule("api", func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
+				var err error
+				var module kernel.Module
+
+				if module, err = NewServer("default", routerFactory)(ctx, config, logger); err != nil {
+					return nil, fmt.Errorf("failed to create test http server: %w", err)
+				}
+
+				server = module.(*HttpServer)
+
+				return server, nil
+			}),
+		}...,
+		)
 	}, nil
 }
