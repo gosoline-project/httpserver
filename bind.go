@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
+	"github.com/go-playground/validator/v10"
 	"github.com/justtrackio/gosoline/pkg/funk"
 	"github.com/justtrackio/gosoline/pkg/refl"
 )
@@ -159,6 +161,15 @@ func BindHandleRequest[I any](ginCtx *gin.Context, tags []string, binders []bind
 
 	for _, binder := range binders {
 		if err := ginCtx.ShouldBindWith(in, binder); err != nil {
+			var validationErrors validator.ValidationErrors
+			if errors.As(err, &validationErrors) {
+				return nil, err
+			}
+
+			if strings.HasPrefix(err.Error(), binder.Name()+": ") {
+				return nil, err
+			}
+
 			return nil, fmt.Errorf("%s: %w", binder.Name(), err)
 		}
 	}

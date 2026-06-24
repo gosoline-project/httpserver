@@ -18,6 +18,12 @@ import (
 type bindJsonInput struct {
 	Name string `json:"name"`
 }
+
+type bindValidatedJsonInput struct {
+	Name  string `json:"name" binding:"required"`
+	Count int    `json:"count" binding:"required"`
+}
+
 type bindUriInput struct {
 	Id int `uri:"id" json:"id"`
 }
@@ -80,6 +86,7 @@ func TestBindCases(t *testing.T) {
 		expectedBody string
 	}{
 		{
+			// JSON requests should bind from the body when the content type is application/json.
 			name: "json success",
 			register: func(r *gin.Engine) {
 				r.POST("/json", httpserver.Bind(func(ctx context.Context, input *bindJsonInput) (httpserver.Response, error) {
@@ -94,20 +101,7 @@ func TestBindCases(t *testing.T) {
 			expectedBody: `{"name":"alice"}`,
 		},
 		{
-			name: "json invalid",
-			register: func(r *gin.Engine) {
-				r.POST("/json", httpserver.Bind(func(ctx context.Context, input *bindJsonInput) (httpserver.Response, error) {
-					return httpserver.NewJsonResponse(input), nil
-				}))
-			},
-			method:       http.MethodPost,
-			path:         "/json",
-			body:         `{"name":`,
-			headers:      map[string]string{httpserver.HeaderContentType: httpserver.ContentTypeApplicationJson},
-			expectedCode: http.StatusBadRequest,
-			expectedBody: `{"err": "json: unexpected EOF"}`,
-		},
-		{
+			// URI parameters should bind after request body binding and populate uri-tagged fields.
 			name: "uri success",
 			register: func(r *gin.Engine) {
 				r.GET("/obj/:id", httpserver.Bind(func(ctx context.Context, input *bindUriInput) (httpserver.Response, error) {
@@ -122,6 +116,7 @@ func TestBindCases(t *testing.T) {
 			expectedBody: `{"id":7}`,
 		},
 		{
+			// Body and URI binding should compose into the same input value.
 			name: "json and uri success",
 			register: func(r *gin.Engine) {
 				r.POST("/mixed/:id", httpserver.Bind(func(ctx context.Context, input *bindMixedInput) (httpserver.Response, error) {
@@ -136,6 +131,7 @@ func TestBindCases(t *testing.T) {
 			expectedBody: `{"id":3,"name":"bob"}`,
 		},
 		{
+			// BindR should pass the raw request to handlers that need request metadata.
 			name: "bindR request propagation",
 			register: func(r *gin.Engine) {
 				r.POST("/r", httpserver.BindR(func(ctx context.Context, req *http.Request, input *bindJsonInput) (httpserver.Response, error) {
@@ -150,6 +146,7 @@ func TestBindCases(t *testing.T) {
 			expectedBody: `{"method":"POST"}`,
 		},
 		{
+			// BindN should support successful handlers that intentionally return no body.
 			name: "bindN no content",
 			register: func(r *gin.Engine) {
 				r.GET("/n", httpserver.BindN(func(ctx context.Context) (httpserver.Response, error) {
@@ -162,6 +159,7 @@ func TestBindCases(t *testing.T) {
 			expectedBody: ``,
 		},
 		{
+			// 304 responses must not attempt to serialize or write a response body.
 			name: "bindN not modified",
 			register: func(r *gin.Engine) {
 				r.GET("/not-modified", httpserver.BindN(func(ctx context.Context) (httpserver.Response, error) {
@@ -174,6 +172,7 @@ func TestBindCases(t *testing.T) {
 			expectedBody: ``,
 		},
 		{
+			// HEAD responses should keep the status and headers but suppress the response body.
 			name: "bindN head request has no body",
 			register: func(r *gin.Engine) {
 				r.HEAD("/head", httpserver.BindN(func(ctx context.Context) (httpserver.Response, error) {
@@ -186,6 +185,7 @@ func TestBindCases(t *testing.T) {
 			expectedBody: ``,
 		},
 		{
+			// Query tags should bind from URL query parameters without requiring a request body.
 			name: "query success",
 			register: func(r *gin.Engine) {
 				r.GET("/search", httpserver.Bind(func(ctx context.Context, input *bindQueryInput) (httpserver.Response, error) {
@@ -198,6 +198,7 @@ func TestBindCases(t *testing.T) {
 			expectedBody: `{"Search":"golang","Page":2}`,
 		},
 		{
+			// Header tags should bind from request headers alongside body binding.
 			name: "header success",
 			register: func(r *gin.Engine) {
 				r.GET("/header", httpserver.Bind(func(ctx context.Context, input *bindHeaderInput) (httpserver.Response, error) {
@@ -212,6 +213,7 @@ func TestBindCases(t *testing.T) {
 			expectedBody: `{"auth":"Bearer token"}`,
 		},
 		{
+			// Form content type should bind form fields from an urlencoded body.
 			name: "form success",
 			register: func(r *gin.Engine) {
 				r.POST("/form", httpserver.Bind(func(ctx context.Context, input *bindFormInput) (httpserver.Response, error) {
@@ -226,6 +228,7 @@ func TestBindCases(t *testing.T) {
 			expectedBody: `{"Name":"alice","Email":"alice@example.com"}`,
 		},
 		{
+			// Form-tagged inputs should combine urlencoded body fields with query parameters.
 			name: "query + form both success",
 			register: func(r *gin.Engine) {
 				r.POST("/searchform", httpserver.Bind(func(ctx context.Context, input *bindQueryInput) (httpserver.Response, error) {
@@ -267,25 +270,104 @@ func TestBindCases(t *testing.T) {
 	}
 }
 
+func TestBindFailureCases(t *testing.T) {
+	cases := []struct {
+		name         string
+		body         string
+		expectedBody string
+	}{
+		{
+			// Invalid JSON should be reported as a binding error with the binder name for context.
+			name:         "json invalid",
+			body:         `{"name":`,
+			expectedBody: `{"err":"json: unexpected EOF"}`,
+		},
+		{
+			// Validator errors come from the bind phase, but should not be prefixed with the binder name.
+			name:         "validation error returns bad request",
+			body:         `{"count":1}`,
+			expectedBody: `{"err":"Key: 'bindValidatedJsonInput.Name' Error:Field validation for 'Name' failed on the 'required' tag"}`,
+		},
+		{
+			// Decode errors should short-circuit validation and avoid duplicate prefixes like "json: json:".
+			name:         "bind error takes precedence over validation error",
+			body:         `{"count":"not-a-number"}`,
+			expectedBody: `{"err":"json: cannot unmarshal string into Go struct field bindValidatedJsonInput.count of type int"}`,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			handlerCalled := false
+			r := newTestRouter(func(r *gin.Engine) {
+				r.POST("/validated", httpserver.Bind(func(ctx context.Context, input *bindValidatedJsonInput) (httpserver.Response, error) {
+					handlerCalled = true
+
+					return httpserver.NewJsonResponse(input), nil
+				}))
+			})
+
+			req := httptest.NewRequest(http.MethodPost, "/validated", strings.NewReader(tc.body))
+			req.Header.Set(httpserver.HeaderContentType, httpserver.ContentTypeApplicationJson)
+			recorder := httptest.NewRecorder()
+
+			r.ServeHTTP(recorder, req)
+
+			assert.False(t, handlerCalled)
+			assert.Equal(t, http.StatusBadRequest, recorder.Code)
+			assert.JSONEq(t, tc.expectedBody, recorder.Body.String())
+		})
+	}
+}
+
 func TestBindReportsBindErrorType(t *testing.T) {
-	gin.SetMode(gin.TestMode)
+	cases := []struct {
+		name     string
+		register func(r *gin.Engine)
+		body     string
+	}{
+		{
+			// Binding failures should be marked as Gin bind errors for middleware/logging.
+			name: "bind error",
+			register: func(r *gin.Engine) {
+				r.POST("/json", httpserver.Bind(func(ctx context.Context, input *bindJsonInput) (httpserver.Response, error) {
+					return httpserver.NewJsonResponse(input), nil
+				}))
+			},
+			body: `{"name":`,
+		},
+		{
+			// Validation failures during binding should also be marked as Gin bind errors.
+			name: "validation error",
+			register: func(r *gin.Engine) {
+				r.POST("/json", httpserver.Bind(func(ctx context.Context, input *bindValidatedJsonInput) (httpserver.Response, error) {
+					return httpserver.NewJsonResponse(input), nil
+				}))
+			},
+			body: `{}`,
+		},
+	}
 
-	r := gin.New()
-	r.Use(func(ctx *gin.Context) {
-		ctx.Next()
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			gin.SetMode(gin.TestMode)
 
-		assert.Len(t, ctx.Errors, 1)
-		assert.True(t, ctx.Errors[0].IsType(gin.ErrorTypeBind))
-	})
-	r.POST("/json", httpserver.Bind(func(ctx context.Context, input *bindJsonInput) (httpserver.Response, error) {
-		return httpserver.NewJsonResponse(input), nil
-	}))
+			r := gin.New()
+			r.Use(func(ctx *gin.Context) {
+				ctx.Next()
 
-	req := httptest.NewRequest(http.MethodPost, "/json", strings.NewReader(`{"name":`))
-	req.Header.Set(httpserver.HeaderContentType, httpserver.ContentTypeApplicationJson)
-	recorder := httptest.NewRecorder()
+				assert.Len(t, ctx.Errors, 1)
+				assert.True(t, ctx.Errors[0].IsType(gin.ErrorTypeBind))
+			})
+			tc.register(r)
 
-	r.ServeHTTP(recorder, req)
+			req := httptest.NewRequest(http.MethodPost, "/json", strings.NewReader(tc.body))
+			req.Header.Set(httpserver.HeaderContentType, httpserver.ContentTypeApplicationJson)
+			recorder := httptest.NewRecorder()
+
+			r.ServeHTTP(recorder, req)
+		})
+	}
 }
 
 func TestBindHandleResponseSkipsBodyHandlingForBodylessResponses(t *testing.T) {
@@ -295,16 +377,19 @@ func TestBindHandleResponseSkipsBodyHandlingForBodylessResponses(t *testing.T) {
 		statusCode int
 	}{
 		{
+			// 204 responses are bodyless, so Body and Writer.Write must not be called.
 			name:       "204 no content",
 			method:     http.MethodGet,
 			statusCode: http.StatusNoContent,
 		},
 		{
+			// 304 responses are bodyless, so Body and Writer.Write must not be called.
 			name:       "304 not modified",
 			method:     http.MethodGet,
 			statusCode: http.StatusNotModified,
 		},
 		{
+			// HEAD requests are bodyless regardless of status, so Body and Writer.Write must not be called.
 			name:       "head request",
 			method:     http.MethodHead,
 			statusCode: http.StatusOK,
