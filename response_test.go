@@ -51,6 +51,20 @@ func TestResponseCases(t *testing.T) {
 			expectHeaders: map[string]string{"X-Test": "abc"},
 		},
 		{
+			name:          "redirect response",
+			build:         func() Response { return NewRedirectResponse("https://example.com") },
+			expectBody:    "",
+			expectStatus:  http.StatusFound,
+			expectHeaders: map[string]string{HeaderLocation: "https://example.com"},
+		},
+		{
+			name:          "redirect response with options",
+			build:         func() Response { return NewRedirectResponse("https://example.com", WithHeader("X-Test", "abc")) },
+			expectBody:    "",
+			expectStatus:  http.StatusFound,
+			expectHeaders: map[string]string{HeaderLocation: "https://example.com", "X-Test": "abc"},
+		},
+		{
 			name:          "text response",
 			build:         func() Response { return NewTextResponse("plain") },
 			expectBody:    "plain",

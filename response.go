@@ -72,6 +72,16 @@ func NewStatusResponse(statusCode int, options ...ResponseOption) *response {
 	return NewResponse(responseOptions...)
 }
 
+// NewRedirectResponse creates a redirect response to the given URL with status 302 Found.
+func NewRedirectResponse(redirectURL string, options ...ResponseOption) Response {
+	responseOptions := append([]ResponseOption{
+		WithStatusCode(http.StatusFound),
+		WithHeader(HeaderLocation, redirectURL),
+	}, options...)
+
+	return NewResponse(responseOptions...)
+}
+
 // NewTextResponse creates a plain-text response with status 200 by default.
 func NewTextResponse(text string, options ...ResponseOption) *response {
 	responseOptions := append([]ResponseOption{
