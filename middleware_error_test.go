@@ -63,12 +63,12 @@ func (s *errorMiddlewareTestSuite) TestValidationErrorReturnsBadRequest() {
 	s.JSONEq(`{"err":"validation: invalid input"}`, recorder.Body.String())
 }
 
-func (s *errorMiddlewareTestSuite) TestWrappedValidationErrorReturnsBadRequest() {
-	err := fmt.Errorf("handler error: %w", validation.NewError(errors.New("invalid input")))
+func (s *errorMiddlewareTestSuite) TestWrappedValidationErrorReturnsBadRequestWithoutWrapperMessage() {
+	err := fmt.Errorf("service context: %w", validation.NewError(errors.New("invalid input")))
 	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddleware())
 
 	s.Equal(http.StatusBadRequest, recorder.Code)
-	s.JSONEq(`{"err":"handler error: validation: invalid input"}`, recorder.Body.String())
+	s.JSONEq(`{"err":"service context: validation: invalid input"}`, recorder.Body.String())
 }
 
 func (s *errorMiddlewareTestSuite) TestStatusErrorTakesPrecedenceOverValidationError() {

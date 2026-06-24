@@ -31,13 +31,13 @@ func BindR[I any](handler func(ctx context.Context, req *http.Request, input *I)
 		var response Response
 
 		if input, err = BindHandleRequest[I](ginCtx, tags, binders); err != nil {
-			reportGinErrorWithType(ginCtx, NewErrorWithStatus(http.StatusBadRequest, fmt.Errorf("bind error: %w", err)), gin.ErrorTypeBind)
+			reportGinErrorWithType(ginCtx, NewErrorWithStatus(http.StatusBadRequest, err), gin.ErrorTypeBind)
 
 			return
 		}
 
 		if response, err = handler(ginCtx, ginCtx.Request, input); err != nil {
-			reportGinError(ginCtx, fmt.Errorf("handler error: %w", err))
+			reportGinError(ginCtx, err)
 
 			return
 		}
@@ -63,7 +63,7 @@ func BindNR(handler func(ctx context.Context, req *http.Request) (Response, erro
 		var response Response
 
 		if response, err = handler(ginCtx, ginCtx.Request); err != nil {
-			reportGinError(ginCtx, fmt.Errorf("handler error: %w", err))
+			reportGinError(ginCtx, err)
 
 			return
 		}
@@ -92,7 +92,7 @@ func BindSseR[I any](handler func(ctx context.Context, req *http.Request, input 
 		var input *I
 
 		if input, err = BindHandleRequest[I](ginCtx, tags, binders); err != nil {
-			reportGinErrorWithType(ginCtx, NewErrorWithStatus(http.StatusBadRequest, fmt.Errorf("bind error: %w", err)), gin.ErrorTypeBind)
+			reportGinErrorWithType(ginCtx, NewErrorWithStatus(http.StatusBadRequest, err), gin.ErrorTypeBind)
 
 			return
 		}

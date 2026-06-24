@@ -105,7 +105,7 @@ func TestBindCases(t *testing.T) {
 			body:         `{"name":`,
 			headers:      map[string]string{httpserver.HeaderContentType: httpserver.ContentTypeApplicationJson},
 			expectedCode: http.StatusBadRequest,
-			expectedBody: `{"err": "bind error: json: unexpected EOF"}`,
+			expectedBody: `{"err": "json: unexpected EOF"}`,
 		},
 		{
 			name: "uri success",
