@@ -115,7 +115,7 @@ func (s *BindSseTestSuite) TestBindSse_BindingError() {
 
 	// Should return normal JSON error response (headers not committed yet)
 	s.Equal(http.StatusBadRequest, rec.Code)
-	s.Contains(rec.Body.String(), "bind error")
+	s.JSONEq(`{"err":"json: unexpected EOF"}`, rec.Body.String())
 }
 
 func (s *BindSseTestSuite) TestBindSse_ClientDisconnect() {
