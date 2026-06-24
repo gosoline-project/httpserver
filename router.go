@@ -44,7 +44,6 @@ func (d *Definition) getAbsolutePath() string {
 type Router struct {
 	basePath            string
 	registerFactories   []RegisterFactoryFunc
-	middleware          []gin.HandlerFunc
 	middlewareFactories []MiddlewareFactory
 	routes              []Definition
 
@@ -78,8 +77,12 @@ func (d *Router) Group(relativePath string) *Router {
 }
 
 // Use adds Gin middleware to the current router group.
-func (d *Router) Use(middleware ...gin.HandlerFunc) {
-	d.middleware = append(d.middleware, middleware...)
+func (d *Router) Use(middlewares ...gin.HandlerFunc) {
+	for _, middleware := range middlewares {
+		d.UseFactory(func(_ context.Context, _ cfg.Config, _ log.Logger, _ *Settings) (gin.HandlerFunc, error) {
+			return middleware, nil
+		})
+	}
 }
 
 // UseFactory adds middleware factories to the current router group.
@@ -156,10 +159,6 @@ func buildRouter(ctx context.Context, config cfg.Config, logger log.Logger, sett
 
 	if definitions.parent != nil {
 		grp = router.Group(definitions.basePath)
-	}
-
-	for _, m := range definitions.middleware {
-		grp.Use(m)
 	}
 
 	for _, f := range definitions.middlewareFactories {
