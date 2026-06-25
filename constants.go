@@ -6,6 +6,7 @@ const (
 	ContentTypeJson            = "application/json; charset=utf-8"
 	ContentTypeApplicationJson = "application/json"
 	ContentTypeTextPlain       = "text/plain; charset=utf-8"
+	ContentTypeHtml            = "text/html; charset=utf-8"
 	ContentTypeEventStream     = "text/event-stream"
 	ContentTypeFormURLEncoded  = "application/x-www-form-urlencoded"
 

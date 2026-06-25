@@ -81,6 +81,22 @@ func TestResponseCases(t *testing.T) {
 			expectHeaders: map[string]string{HeaderContentType: ContentTypeTextPlain, "X-Test": "abc"},
 		},
 		{
+			name:          "html response",
+			build:         func() Response { return NewHtmlResponse([]byte("<h1>Hello</h1>")) },
+			expectBody:    "<h1>Hello</h1>",
+			expectStatus:  http.StatusOK,
+			expectHeaders: map[string]string{HeaderContentType: ContentTypeHtml},
+		},
+		{
+			name: "html response with options",
+			build: func() Response {
+				return NewHtmlResponse([]byte("<h1>Hello</h1>"), WithStatusCode(http.StatusCreated), WithHeader("X-Test", "abc"))
+			},
+			expectBody:    "<h1>Hello</h1>",
+			expectStatus:  http.StatusCreated,
+			expectHeaders: map[string]string{HeaderContentType: ContentTypeHtml, "X-Test": "abc"},
+		},
+		{
 			name:          "json response",
 			build:         func() Response { return NewJsonResponse(sample{Name: "alice", Age: 30}) },
 			expectBody:    `{"name":"alice","age":30}`,

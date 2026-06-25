@@ -93,6 +93,17 @@ func NewTextResponse(text string, options ...ResponseOption) *response {
 	return NewResponse(responseOptions...)
 }
 
+// NewHtmlResponse creates a HTML response with status 200 by default.
+func NewHtmlResponse(body []byte, options ...ResponseOption) *response {
+	responseOptions := append([]ResponseOption{
+		WithBody(body),
+		WithHeader(HeaderContentType, ContentTypeHtml),
+		WithStatusCode(http.StatusOK),
+	}, options...)
+
+	return NewResponse(responseOptions...)
+}
+
 var _ Response = &jsonResponse[string]{}
 
 type jsonResponse[T any] struct {
