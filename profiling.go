@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/justtrackio/gosoline/pkg/cfg"
+	"github.com/justtrackio/gosoline/pkg/coffin"
 	"github.com/justtrackio/gosoline/pkg/kernel"
 	"github.com/justtrackio/gosoline/pkg/log"
 )
@@ -15,7 +16,7 @@ import (
 // Profiling is the Gosoline module running the optional profiling HTTP server.
 type Profiling struct {
 	kernel.BackgroundModule
-	kernel.ServiceStage
+	kernel.ApplicationStage
 
 	logger log.Logger
 	server *http.Server
@@ -63,21 +64,25 @@ func NewProfilingWithInterfaces(logger log.Logger, router *gin.Engine, settings 
 
 // Run starts the profiling server until the context is cancelled.
 func (p *Profiling) Run(ctx context.Context) error {
-	go p.waitForStop(ctx)
+	cfn := coffin.New()
+	cfn.GoWithContext(ctx, p.waitForStop)
 	err := p.server.ListenAndServe()
 
 	if !errors.Is(err, http.ErrServerClosed) {
-		p.logger.Error(ctx, "profiling api server closed unexpected", err)
+		p.logger.Error(ctx, "profiling http server closed unexpected", err)
 
 		return err
 	}
 
-	return nil
+	return cfn.Wait()
 }
 
-func (p *Profiling) waitForStop(ctx context.Context) {
+func (p *Profiling) waitForStop(ctx context.Context) error {
 	<-ctx.Done()
-	if err := p.server.Close(); err != nil {
-		p.logger.Error(ctx, "profiling api server close", err)
+	err := p.server.Close()
+	if err != nil {
+		p.logger.Error(ctx, "profiling http server close", err)
 	}
+
+	return err
 }

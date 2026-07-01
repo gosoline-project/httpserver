@@ -39,7 +39,7 @@ type HandlerMetadata struct {
 // HttpServer is the Gosoline module running a configured HTTP server.
 type HttpServer struct {
 	kernel.EssentialModule
-	kernel.ServiceStage
+	kernel.ApplicationStage
 
 	logger         log.Logger
 	server         *http.Server
@@ -63,7 +63,7 @@ func NewServer(name string, definer RouterFactory) kernel.ModuleFactory {
 }
 
 // NewServerWithSettings creates a module factory for a named HTTP server using explicit settings.
-func NewServerWithSettings(ctx context.Context, name string, definer RouterFactory, settings *Settings) kernel.ModuleFactory {
+func NewServerWithSettings(_ context.Context, name string, definer RouterFactory, settings *Settings) kernel.ModuleFactory {
 	settings.Name = name
 
 	return func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
@@ -140,7 +140,14 @@ func NewServerWithSettings(ctx context.Context, name string, definer RouterFacto
 }
 
 // NewWithInterfaces creates an HttpServer from already constructed dependencies.
-func NewWithInterfaces(ctx context.Context, logger log.Logger, router *gin.Engine, tracer tracing.Instrumentor, settings *Settings, metricRecorder ServerMetricRecorder) (*HttpServer, error) {
+func NewWithInterfaces(
+	ctx context.Context,
+	logger log.Logger,
+	router *gin.Engine,
+	tracer tracing.Instrumentor,
+	settings *Settings,
+	metricRecorder ServerMetricRecorder,
+) (*HttpServer, error) {
 	connectionPressureManager := NewConnectionPressureManager(ctx, metricRecorder)
 
 	server := &http.Server{
@@ -181,11 +188,11 @@ func NewWithInterfaces(ctx context.Context, logger log.Logger, router *gin.Engin
 }
 
 // IsHealthy reports whether the server is currently accepting traffic.
-func (s *HttpServer) IsHealthy(ctx context.Context) (bool, error) {
+func (s *HttpServer) IsHealthy(_ context.Context) (bool, error) {
 	return s.healthy.Load(), nil
 }
 
-// Run starts serving HTTP requests until the context is cancelled.
+// Run starts serving HTTP requests until the context is canceled.
 func (s *HttpServer) Run(ctx context.Context) error {
 	cfn := coffin.New()
 	cfn.GoWithContext(ctx, s.waitForStop)
