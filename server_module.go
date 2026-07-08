@@ -119,6 +119,7 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 		}
 		router.GET("/health", buildHealthCheckHandler(logger, healthChecker))
 		router.Use(ConcurrentRequestLimitMiddleware(settings.Concurrency))
+		router.Use(ChaosMiddleware(ctx, logger, settings.Chaos))
 
 		definitions := &Router{}
 		if err = definer(ctx, config, logger.WithChannel("handler"), definitions); err != nil {

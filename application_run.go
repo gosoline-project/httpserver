@@ -24,6 +24,7 @@ func RunServers(servers map[string]RouterFactory, options ...application.Option)
 		MaxElapsedTime:  time.Second * 10,
 		MaxInterval:     time.Second,
 	}))
+	options = append(options, application.WithConfigFile("config.dist.yml", "yml"))
 
 	for name, routerFactory := range servers {
 		options = append(options, application.WithModuleFactory("httpserver-"+name, NewServer(name, routerFactory)))
