@@ -77,6 +77,8 @@ type (
 		MaxBodyBytes int64 `cfg:"max_body_bytes" default:"10485760"`
 		// Concurrency settings control request and connection pressure limits.
 		Concurrency ConcurrencySettings `cfg:"concurrency"`
+		// Chaos settings control optional random delays and rejections for resilience testing.
+		Chaos ChaosSettings `cfg:"chaos"`
 	}
 
 	// ConcurrencySettings configures pressure limits for a HTTP server.

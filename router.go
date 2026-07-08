@@ -8,7 +8,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/justtrackio/gosoline/pkg/cfg"
-
 	"github.com/justtrackio/gosoline/pkg/log"
 )
 
