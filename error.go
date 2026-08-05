@@ -3,9 +3,9 @@ package httpserver
 import (
 	"errors"
 	"net/http"
+	"sync"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gosoline-project/authz"
 	"github.com/justtrackio/gosoline/pkg/validation"
 )
 
@@ -18,6 +18,29 @@ const (
 
 // ErrorHandler converts an error and status code into an HTTP response.
 type ErrorHandler func(statusCode int, err error) Response
+
+// ErrorMapper maps an application error to an HTTP status code. The handled
+// result indicates whether the mapper applies to the error.
+type ErrorMapper func(err error) (statusCode int, handled bool)
+
+var (
+	errorMappersMu sync.RWMutex
+	errorMappers   []ErrorMapper
+)
+
+// RegisterErrorMapper adds a status mapper used by GetErrorStatusCode.
+// Mappers are evaluated in registration order after explicit ErrorWithStatus
+// values and before built-in status mappings.
+func RegisterErrorMapper(mapper ErrorMapper) {
+	if mapper == nil {
+		panic("error mapper is required")
+	}
+
+	errorMappersMu.Lock()
+	defer errorMappersMu.Unlock()
+
+	errorMappers = append(errorMappers, mapper)
+}
 
 // ErrorWithStatus is an error that carries an explicit HTTP status code.
 type ErrorWithStatus interface {
@@ -64,16 +87,15 @@ func GetErrorHandler() ErrorHandler {
 	return defaultErrorHandler
 }
 
-// GetErrorStatusCode returns the HTTP status code carried by err, or 500 otherwise.
+// GetErrorStatusCode returns the HTTP status code mapped from err, or 500 otherwise.
 func GetErrorStatusCode(err error) int {
 	var errWithStatus ErrorWithStatus
 	if errors.As(err, &errWithStatus) {
 		return errWithStatus.StatusCode()
 	}
 
-	var deniedError *authz.DeniedError
-	if errors.As(err, &deniedError) {
-		return http.StatusForbidden
+	if statusCode, handled := errorStatusCodeFromMappers(err); handled {
+		return statusCode
 	}
 
 	if validation.IsValidationError(err) {
@@ -81,6 +103,20 @@ func GetErrorStatusCode(err error) int {
 	}
 
 	return http.StatusInternalServerError
+}
+
+func errorStatusCodeFromMappers(err error) (int, bool) {
+	errorMappersMu.RLock()
+	mappers := append([]ErrorMapper(nil), errorMappers...)
+	errorMappersMu.RUnlock()
+
+	for _, mapper := range mappers {
+		if statusCode, handled := mapper(err); handled {
+			return statusCode, true
+		}
+	}
+
+	return 0, false
 }
 
 var defaultErrorHandler = errorHandlerJson
