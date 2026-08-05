@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gosoline-project/authz"
 	"github.com/gosoline-project/httpserver"
 	"github.com/justtrackio/gosoline/pkg/validation"
 	"github.com/stretchr/testify/require"
@@ -53,6 +54,20 @@ func (s *errorMiddlewareTestSuite) TestStatusErrorReturnsStatusAndExposesError()
 
 	s.Equal(http.StatusBadRequest, recorder.Code)
 	s.JSONEq(`{"err":"bad request detail"}`, recorder.Body.String())
+}
+
+func (s *errorMiddlewareTestSuite) TestAuthorizationDeniedErrorReturnsForbidden() {
+	err := fmt.Errorf("handler failed: %w", &authz.DeniedError{
+		Phase: "before",
+		Check: authz.Check{
+			Resource:   authz.Resource{Type: "campaign", ID: "13"},
+			Permission: "read",
+		},
+	})
+	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddleware())
+
+	s.Equal(http.StatusForbidden, recorder.Code)
+	s.JSONEq(`{"err":"handler failed: permission \"read\" denied on campaign:13"}`, recorder.Body.String())
 }
 
 func (s *errorMiddlewareTestSuite) TestValidationErrorReturnsBadRequest() {

@@ -104,6 +104,7 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 		router := gin.New()
 		router.ContextWithFallback = true
 		router.UseRawPath = settings.Router.UseRawPath
+		router.Use(ResponseNegotiationMiddleware(NewDefaultResponseNegotiator()))
 		router.Use(samplingMiddleware)
 		router.Use(metricMiddleware)
 		router.Use(LoggingMiddleware(logger, settings.Logging))

@@ -10,6 +10,7 @@ require (
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/go-resty/resty/v2 v2.7.1-0.20230308051516-1578007c3c8d
 	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/gosoline-project/authz v0.0.0-20260804131941-963ec9405bee
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/justtrackio/gosoline v0.63.5
 	github.com/stretchr/testify v1.11.1

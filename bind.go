@@ -15,21 +15,24 @@ import (
 )
 
 // Bind adapts a typed handler into a Gin handler by binding request data into
-// the input struct before calling the handler.
-func Bind[I any](handler func(ctx context.Context, input *I) (Response, error), binders ...binding.Binding) gin.HandlerFunc {
-	return BindR[I](func(ctx context.Context, _ *http.Request, input *I) (Response, error) {
+// the input struct before calling the handler. Typed output values are rendered
+// by the configured response negotiator; explicit Response values remain an
+// escape hatch for handlers that need direct HTTP response control.
+func Bind[I, O any](handler func(ctx context.Context, input *I) (O, error), binders ...binding.Binding) gin.HandlerFunc {
+	return BindR[I, O](func(ctx context.Context, _ *http.Request, input *I) (O, error) {
 		return handler(ctx, input)
 	}, binders...)
 }
 
 // BindR adapts a typed handler like Bind, but also passes the raw HTTP request
 // to the handler for direct access to headers, method, body metadata, and client data.
-func BindR[I any](handler func(ctx context.Context, req *http.Request, input *I) (Response, error), binders ...binding.Binding) gin.HandlerFunc {
+func BindR[I, O any](handler func(ctx context.Context, req *http.Request, input *I) (O, error), binders ...binding.Binding) gin.HandlerFunc {
 	tags := refl.GetTagNames(new(I))
 
 	return func(ginCtx *gin.Context) {
 		var err error
 		var input *I
+		var output O
 		var response Response
 
 		if input, err = BindHandleRequest[I](ginCtx, tags, binders); err != nil {
@@ -38,8 +41,13 @@ func BindR[I any](handler func(ctx context.Context, req *http.Request, input *I)
 			return
 		}
 
-		if response, err = handler(ginCtx, ginCtx.Request, input); err != nil {
+		if output, err = handler(ginCtx, ginCtx.Request, input); err != nil {
 			reportGinError(ginCtx, err)
+
+			return
+		}
+		if response, err = responseFromOutput(ginCtx, output); err != nil {
+			reportGinError(ginCtx, fmt.Errorf("response error: %w", err))
 
 			return
 		}
@@ -50,22 +58,38 @@ func BindR[I any](handler func(ctx context.Context, req *http.Request, input *I)
 	}
 }
 
+// responseFromOutput preserves explicit Response values as an escape hatch and
+// delegates typed application results to the request's response negotiator.
+func responseFromOutput[O any](ginCtx *gin.Context, output O) (Response, error) {
+	if response, ok := any(output).(Response); ok {
+		return response, nil
+	}
+
+	return responseNegotiatorFromContext(ginCtx).Render(ginCtx.Request, output)
+}
+
 // BindN adapts a typed handler that does not need request input binding.
-func BindN(handler func(ctx context.Context) (Response, error)) gin.HandlerFunc {
-	return BindNR(func(ctx context.Context, _ *http.Request) (Response, error) {
+func BindN[O any](handler func(ctx context.Context) (O, error)) gin.HandlerFunc {
+	return BindNR[O](func(ctx context.Context, _ *http.Request) (O, error) {
 		return handler(ctx)
 	})
 }
 
 // BindNR adapts a typed handler that does not need request input binding, but
 // still needs access to the raw HTTP request.
-func BindNR(handler func(ctx context.Context, req *http.Request) (Response, error)) gin.HandlerFunc {
+func BindNR[O any](handler func(ctx context.Context, req *http.Request) (O, error)) gin.HandlerFunc {
 	return func(ginCtx *gin.Context) {
 		var err error
+		var output O
 		var response Response
 
-		if response, err = handler(ginCtx, ginCtx.Request); err != nil {
+		if output, err = handler(ginCtx, ginCtx.Request); err != nil {
 			reportGinError(ginCtx, err)
+
+			return
+		}
+		if response, err = responseFromOutput(ginCtx, output); err != nil {
+			reportGinError(ginCtx, fmt.Errorf("response error: %w", err))
 
 			return
 		}

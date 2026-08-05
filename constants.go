@@ -5,6 +5,8 @@ import "net/textproto"
 const (
 	ContentTypeJson            = "application/json; charset=utf-8"
 	ContentTypeApplicationJson = "application/json"
+	ContentTypeXml             = "application/xml; charset=utf-8"
+	ContentTypeApplicationXml  = "application/xml"
 	ContentTypeTextPlain       = "text/plain; charset=utf-8"
 	ContentTypeHtml            = "text/html; charset=utf-8"
 	ContentTypeEventStream     = "text/event-stream"

@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gosoline-project/authz"
 	"github.com/justtrackio/gosoline/pkg/validation"
 )
 
@@ -68,6 +69,11 @@ func GetErrorStatusCode(err error) int {
 	var errWithStatus ErrorWithStatus
 	if errors.As(err, &errWithStatus) {
 		return errWithStatus.StatusCode()
+	}
+
+	var deniedError *authz.DeniedError
+	if errors.As(err, &deniedError) {
+		return http.StatusForbidden
 	}
 
 	if validation.IsValidationError(err) {
