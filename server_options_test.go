@@ -180,8 +180,10 @@ func buildServerForOptionsTest(t *testing.T, factory kernel.ModuleFactory) *Http
 
 	_, err := kernel.BuildKernel(ctx, config, logger, []kernel.Option{
 		kernel.WithModuleFactory("httpserver-test", func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
-			module, err := factory(ctx, config, logger)
-			if err != nil {
+			var module kernel.Module
+			var err error
+
+			if module, err = factory(ctx, config, logger); err != nil {
 				return nil, err
 			}
 
