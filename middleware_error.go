@@ -32,7 +32,7 @@ func ErrorMiddlewareWithSettings(settings ErrorsSettings) gin.HandlerFunc {
 }
 
 func writeErrorResponse(c *gin.Context, statusCode int, err error) {
-	output := errorHandlerOutput(statusCode, err)
+	output := defaultErrorHandler(statusCode, err)
 	writeNegotiatedResponse(c, output, statusCode)
 }
 

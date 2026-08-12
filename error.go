@@ -93,27 +93,6 @@ func WithErrorHandler(handler ErrorHandler) {
 	defaultErrorHandler = handler
 }
 
-// GetErrorHandler returns a compatibility handler that produces an explicit
-// JSON response. New code should return errors and let ErrorMiddleware render
-// the negotiated response body.
-//
-// Deprecated: return an error from the handler instead of constructing a
-// response through this accessor.
-func GetErrorHandler() func(statusCode int, err error) Response {
-	return func(statusCode int, err error) Response {
-		output := defaultErrorHandler(statusCode, err)
-		if response, ok := output.(Response); ok {
-			return response
-		}
-
-		return NewJsonResponse(output, WithStatusCode(statusCode))
-	}
-}
-
-func errorHandlerOutput(statusCode int, err error) any {
-	return defaultErrorHandler(statusCode, err)
-}
-
 // GetErrorStatusCode returns the HTTP status code mapped from err, or 500 otherwise.
 func GetErrorStatusCode(err error) int {
 	var errWithStatus ErrorWithStatus

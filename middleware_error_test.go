@@ -142,18 +142,6 @@ func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerResponsePreservesExplic
 	s.Equal("custom error", recorder.Body.String())
 }
 
-func (s *errorMiddlewareTestSuite) TestGetErrorHandlerReturnsJsonCompatibilityResponse() {
-	defer httpserver.WithErrorHandler(nil)
-
-	response := httpserver.GetErrorHandler()(http.StatusBadRequest, errors.New("bad request detail"))
-
-	s.Equal(http.StatusBadRequest, response.StatusCode())
-	s.Equal(httpserver.ContentTypeJson, response.ContentType())
-	body, err := response.Body()
-	s.Require().NoError(err)
-	s.JSONEq(`{"err":"bad request detail"}`, string(body))
-}
-
 func (s *errorMiddlewareTestSuite) TestErrorResponseFallsBackToJSONWhenEncoderFails() {
 	expectedError := errors.New("cannot encode error")
 	negotiator, err := httpserver.NewContentNegotiator(
