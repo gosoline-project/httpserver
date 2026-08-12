@@ -12,10 +12,10 @@ import (
 )
 
 type (
-	Handler[I any] interface {
-		Handle(ctx context.Context, input *I) (Response, error)
+	Handler[I, O any] interface {
+		Handle(ctx context.Context, input *I) (O, error)
 	}
-	HandlerFunc[I any] func(ctx context.Context, input *I) (Response, error)
+	HandlerFunc[I, O any] func(ctx context.Context, input *I) (O, error)
 	// RouterFactory defines routes on the provided router during server startup.
 	RouterFactory func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router) error
 	// MiddlewareFactory creates a Gin middleware from application dependencies and server settings.

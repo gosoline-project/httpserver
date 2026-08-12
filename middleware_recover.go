@@ -9,7 +9,7 @@ import (
 	"github.com/justtrackio/gosoline/pkg/log"
 )
 
-// RecoveryWithSentry recovers panics, logs them, and returns a 500 JSON response.
+// RecoveryWithSentry recovers panics, logs them, and returns a negotiated 500 response.
 func RecoveryWithSentry(logger log.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
@@ -32,11 +32,12 @@ func RecoveryWithSentry(logger log.Logger) gin.HandlerFunc {
 			case string:
 				rerr = errors.New(rval)
 			default:
-				c.AbortWithStatus(http.StatusInternalServerError)
+				rerr = errors.New("unknown panic")
 			}
 
 			logger.Error(ctx, "%w", rerr)
-			c.JSON(http.StatusInternalServerError, gin.H{"err": rerr.Error()})
+			c.Abort()
+			writeErrorResponse(c, http.StatusInternalServerError, rerr)
 		}()
 
 		c.Next()

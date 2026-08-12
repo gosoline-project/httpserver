@@ -21,6 +21,45 @@ type negotiatedOutput struct {
 	Name    string   `json:"name" xml:"name"`
 }
 
+type negotiatedHandler struct{}
+
+func (negotiatedHandler) Handle(context.Context, *struct{}) (negotiatedOutput, error) {
+	return negotiatedOutput{Name: "alice"}, nil
+}
+
+var _ httpserver.Handler[struct{}, negotiatedOutput] = negotiatedHandler{}
+var _ httpserver.HandlerFunc[struct{}, negotiatedOutput] = func(context.Context, *struct{}) (negotiatedOutput, error) {
+	return negotiatedOutput{}, nil
+}
+
+func TestTypedHandlerInterfaceRendersOutput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(httpserver.ErrorMiddleware())
+	router.GET("/result", httpserver.Bind(negotiatedHandler{}.Handle))
+
+	recorder := serveRequest(router, http.MethodGet, "/result", "")
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.JSONEq(t, `{"name":"alice"}`, recorder.Body.String())
+}
+
+func TestTypedHandlerFuncRendersOutput(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	handler := httpserver.HandlerFunc[struct{}, negotiatedOutput](func(context.Context, *struct{}) (negotiatedOutput, error) {
+		return negotiatedOutput{Name: "alice"}, nil
+	})
+
+	router := gin.New()
+	router.Use(httpserver.ErrorMiddleware())
+	router.GET("/result", httpserver.Bind[struct{}, negotiatedOutput](handler))
+
+	recorder := serveRequest(router, http.MethodGet, "/result", "")
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.JSONEq(t, `{"name":"alice"}`, recorder.Body.String())
+}
+
 func TestBindRendersTypedOutputAsJSON(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
@@ -37,6 +76,24 @@ func TestBindRendersTypedOutputAsJSON(t *testing.T) {
 	assert.Equal(t, httpserver.ContentTypeJson, recorder.Header().Get(httpserver.HeaderContentType))
 	assert.Equal(t, httpserver.HeaderAccept, recorder.Header().Get(httpserver.HeaderVary))
 	assert.JSONEq(t, `{"name":"alice"}`, recorder.Body.String())
+}
+
+func TestNegotiatedResponsePreservesExistingVaryHeader(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Header(httpserver.HeaderVary, httpserver.HeaderAcceptEncoding)
+		c.Next()
+	})
+	router.Use(httpserver.ErrorMiddleware())
+	router.GET("/result", httpserver.BindN(func(context.Context) (negotiatedOutput, error) {
+		return negotiatedOutput{Name: "alice"}, nil
+	}))
+
+	recorder := serveRequest(router, http.MethodGet, "/result", httpserver.ContentTypeApplicationJson)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, "Accept-Encoding, Accept", recorder.Header().Get(httpserver.HeaderVary))
 }
 
 func TestBindNegotiatesXMLForExplicitlyConfiguredRepresentation(t *testing.T) {
@@ -132,13 +189,28 @@ func TestBindRejectsXMLByDefault(t *testing.T) {
 	assert.Contains(t, recorder.Body.String(), "not acceptable")
 }
 
-func TestBindNRendersTypedOutputAsJSON(t *testing.T) {
+func TestBindNRWithTypedOutputAsJSON(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(httpserver.ErrorMiddleware())
 	router.GET("/result", httpserver.BindNR(func(_ context.Context, request *http.Request) (negotiatedOutput, error) {
 		assert.Equal(t, "/result", request.URL.Path)
 
+		return negotiatedOutput{Name: "alice"}, nil
+	}))
+
+	recorder := serveRequest(router, http.MethodGet, "/result", "")
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, httpserver.ContentTypeJson, recorder.Header().Get(httpserver.HeaderContentType))
+	assert.JSONEq(t, `{"name":"alice"}`, recorder.Body.String())
+}
+
+func TestBindNWithTypedOutputAsJSON(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(httpserver.ErrorMiddleware())
+	router.GET("/result", httpserver.BindN(func(context.Context) (negotiatedOutput, error) {
 		return negotiatedOutput{Name: "alice"}, nil
 	}))
 

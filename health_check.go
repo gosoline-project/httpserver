@@ -2,9 +2,11 @@ package httpserver
 
 import (
 	"context"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 
 	"github.com/gin-gonic/gin"
 	"github.com/justtrackio/gosoline/pkg/cfg"
@@ -102,7 +104,7 @@ func buildHealthCheckHandler(logger log.Logger, healthChecker kernel.HealthCheck
 		result := healthChecker()
 
 		if result.IsHealthy() {
-			c.JSON(http.StatusOK, gin.H{})
+			writeNegotiatedResponse(c, healthCheckResponse{}, http.StatusOK, healthCheckResponse{})
 
 			return
 		}
@@ -112,11 +114,34 @@ func buildHealthCheckHandler(logger log.Logger, healthChecker kernel.HealthCheck
 			logger.Error(ctx, "encountered an error during the health check: %w", result.Err())
 		}
 
-		resp := gin.H{}
+		response := healthCheckResponse{}
 		for _, module := range result.GetUnhealthy() {
-			resp[module.Name] = "unhealthy"
+			response[module.Name] = "unhealthy"
 		}
 
-		c.JSON(http.StatusInternalServerError, resp)
+		writeNegotiatedResponse(c, response, http.StatusInternalServerError, response)
 	}
+}
+
+type healthCheckResponse map[string]string
+
+func (r healthCheckResponse) MarshalXML(encoder *xml.Encoder, start xml.StartElement) error {
+	start.Name.Local = "health"
+	if err := encoder.EncodeToken(start); err != nil {
+		return err
+	}
+
+	moduleNames := make([]string, 0, len(r))
+	for moduleName := range r {
+		moduleNames = append(moduleNames, moduleName)
+	}
+	sort.Strings(moduleNames)
+
+	for _, moduleName := range moduleNames {
+		if err := encoder.EncodeElement(r[moduleName], xml.StartElement{Name: xml.Name{Local: moduleName}}); err != nil {
+			return err
+		}
+	}
+
+	return encoder.EncodeToken(start.End())
 }

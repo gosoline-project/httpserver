@@ -55,6 +55,105 @@ func (s *errorMiddlewareTestSuite) TestStatusErrorReturnsStatusAndExposesError()
 	s.JSONEq(`{"err":"bad request detail"}`, recorder.Body.String())
 }
 
+func (s *errorMiddlewareTestSuite) TestErrorResponseUsesNegotiatedRepresentation() {
+	negotiator, err := httpserver.NewContentNegotiator(
+		httpserver.ContentTypeApplicationJson,
+		httpserver.JSONRepresentation(),
+		httpserver.XMLRepresentation(),
+	)
+	s.Require().NoError(err)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
+	router.Use(httpserver.ErrorMiddleware())
+	router.GET("/error", func(c *gin.Context) {
+		require.NotNil(s.T(), c.Error(httpserver.NewErrorWithStatus(http.StatusBadRequest, errors.New("bad request detail"))))
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/error", http.NoBody)
+	request.Header.Set(httpserver.HeaderAccept, httpserver.ContentTypeApplicationXml)
+	router.ServeHTTP(recorder, request)
+
+	s.Equal(http.StatusBadRequest, recorder.Code)
+	s.Equal(httpserver.ContentTypeXml, recorder.Header().Get(httpserver.HeaderContentType))
+	s.Equal(`<error><err>bad request detail</err></error>`, recorder.Body.String())
+}
+
+func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerResponsePreservesExplicitResponse() {
+	defer httpserver.WithErrorHandler(nil)
+
+	httpserver.WithErrorHandler(func(statusCode int, err error) httpserver.Response {
+		s.Equal(http.StatusBadRequest, statusCode)
+		s.Equal("bad request detail", err.Error())
+
+		return httpserver.NewResponse(
+			httpserver.WithBody([]byte("custom error")),
+			httpserver.WithHeader(httpserver.HeaderContentType, httpserver.ContentTypeTextPlain),
+			httpserver.WithHeader("X-Error-Source", "custom"),
+			httpserver.WithStatusCode(http.StatusTeapot),
+		)
+	})
+
+	negotiator, err := httpserver.NewContentNegotiator(
+		httpserver.ContentTypeApplicationJson,
+		httpserver.JSONRepresentation(),
+		httpserver.XMLRepresentation(),
+	)
+	s.Require().NoError(err)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
+	router.Use(httpserver.ErrorMiddleware())
+	router.GET("/error", func(c *gin.Context) {
+		require.NotNil(s.T(), c.Error(httpserver.NewErrorWithStatus(http.StatusBadRequest, errors.New("bad request detail"))))
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/error", http.NoBody)
+	request.Header.Set(httpserver.HeaderAccept, httpserver.ContentTypeApplicationXml)
+	router.ServeHTTP(recorder, request)
+
+	s.Equal(http.StatusTeapot, recorder.Code)
+	s.Equal(httpserver.ContentTypeTextPlain, recorder.Header().Get(httpserver.HeaderContentType))
+	s.Equal("custom", recorder.Header().Get("X-Error-Source"))
+	s.Equal("custom error", recorder.Body.String())
+}
+
+func (s *errorMiddlewareTestSuite) TestErrorResponseFallsBackToJSONWhenEncoderFails() {
+	expectedError := errors.New("cannot encode error")
+	negotiator, err := httpserver.NewContentNegotiator(
+		"application/problem+json",
+		httpserver.ResponseRepresentation{
+			MediaType: "application/problem+json",
+			Encode: func(any) ([]byte, error) {
+				return nil, expectedError
+			},
+		},
+	)
+	s.Require().NoError(err)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
+	router.Use(httpserver.ErrorMiddleware())
+	router.GET("/error", func(c *gin.Context) {
+		require.NotNil(s.T(), c.Error(httpserver.NewErrorWithStatus(http.StatusTeapot, errors.New("bad request detail"))))
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/error", http.NoBody)
+	request.Header.Set(httpserver.HeaderAccept, "application/problem+json")
+	router.ServeHTTP(recorder, request)
+
+	s.Equal(http.StatusTeapot, recorder.Code)
+	s.Equal(httpserver.ContentTypeJson, recorder.Header().Get(httpserver.HeaderContentType))
+	s.Equal(httpserver.HeaderAccept, recorder.Header().Get(httpserver.HeaderVary))
+	s.JSONEq(`{"err":"bad request detail"}`, recorder.Body.String())
+}
+
 func (s *errorMiddlewareTestSuite) TestRegisteredErrorMapperReturnsForbidden() {
 	deniedError := errors.New("permission denied")
 	httpserver.RegisterErrorMapper(func(err error) (int, bool) {

@@ -68,6 +68,19 @@ func responseFromOutput[O any](ginCtx *gin.Context, output O) (Response, error) 
 	return responseNegotiatorFromContext(ginCtx).Render(ginCtx.Request, output)
 }
 
+func responseFromOutputWithStatus[O any](ginCtx *gin.Context, output O, statusCode int) (Response, error) {
+	response, err := responseFromOutput(ginCtx, output)
+	if err != nil {
+		return nil, err
+	}
+
+	if _, ok := any(output).(Response); ok {
+		return response, nil
+	}
+
+	return withStatusCode(response, statusCode), nil
+}
+
 // BindN adapts a typed handler that does not need request input binding.
 func BindN[O any](handler func(ctx context.Context) (O, error)) gin.HandlerFunc {
 	return BindNR[O](func(ctx context.Context, _ *http.Request) (O, error) {
@@ -293,6 +306,11 @@ func BindHandleResponse(response Response, ginCtx *gin.Context) error {
 
 	for key, values := range header {
 		for _, value := range values {
+			if strings.EqualFold(key, HeaderVary) {
+				addVaryHeader(ginCtx.Writer.Header(), value)
+				continue
+			}
+
 			ginCtx.Header(key, value)
 		}
 	}
@@ -309,6 +327,57 @@ func BindHandleResponse(response Response, ginCtx *gin.Context) error {
 	}
 
 	return nil
+}
+
+func addVaryHeader(header http.Header, value string) {
+	var values []string
+	seen := make(map[string]struct{})
+
+	for _, existing := range header.Values(HeaderVary) {
+		for _, token := range strings.Split(existing, ",") {
+			token = strings.TrimSpace(token)
+			if token == "" {
+				continue
+			}
+			if token == "*" {
+				header.Set(HeaderVary, "*")
+
+				return
+			}
+
+			key := strings.ToLower(token)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+
+			seen[key] = struct{}{}
+			values = append(values, token)
+		}
+	}
+
+	for _, token := range strings.Split(value, ",") {
+		token = strings.TrimSpace(token)
+		if token == "" {
+			continue
+		}
+		if token == "*" {
+			header.Set(HeaderVary, "*")
+
+			return
+		}
+
+		key := strings.ToLower(token)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+
+		seen[key] = struct{}{}
+		values = append(values, token)
+	}
+
+	if len(values) > 0 {
+		header.Set(HeaderVary, strings.Join(values, ", "))
+	}
 }
 
 func reportGinError(ginCtx *gin.Context, err error) {

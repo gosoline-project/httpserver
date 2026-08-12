@@ -14,6 +14,22 @@ type Response interface {
 	StatusCode() int
 }
 
+type responseWithStatus struct {
+	Response
+	statusCode int
+}
+
+func (r responseWithStatus) StatusCode() int {
+	return r.statusCode
+}
+
+func withStatusCode(response Response, statusCode int) Response {
+	return responseWithStatus{
+		Response:   response,
+		statusCode: statusCode,
+	}
+}
+
 var _ Response = &response{}
 
 type response struct {

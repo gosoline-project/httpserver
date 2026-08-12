@@ -113,6 +113,35 @@ func TestRecoveryWithSentryCaseResponseBodyWriterErrorButNotConnectionError(t *t
 	loggerMock.AssertNumberOfCalls(t, "Error", 1)
 }
 
+func TestRecoveryWithSentryUsesNegotiatedRepresentation(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	negotiator, err := httpserver.NewContentNegotiator(
+		httpserver.ContentTypeApplicationJson,
+		httpserver.JSONRepresentation(),
+		httpserver.XMLRepresentation(),
+	)
+	assert.NoError(t, err)
+
+	loggerMock := logMocks.NewLoggerMock(logMocks.WithMockAll, logMocks.WithTestingT(t))
+	r := gin.New()
+	r.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
+	r.Use(httpserver.RecoveryWithSentry(loggerMock))
+	r.GET("/panic", func(_ *gin.Context) {
+		panic("something went wrong")
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/panic", http.NoBody)
+	request.Header.Set(httpserver.HeaderAccept, httpserver.ContentTypeApplicationXml)
+
+	r.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+	assert.Equal(t, httpserver.ContentTypeXml, recorder.Header().Get(httpserver.HeaderContentType))
+	assert.Equal(t, `<error><err>something went wrong</err></error>`, recorder.Body.String())
+}
+
 func TestRecoveryWithSentryCaseString(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

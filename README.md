@@ -58,12 +58,12 @@ func NewHandler(ctx context.Context, config cfg.Config, logger log.Logger) (*Han
     return &Handler{}, nil
 }
 
-func (h *Handler) HandleA(ctx context.Context, in *InputA) (httpserver.Response, error) {
-    return httpserver.NewJsonResponse(map[string]any{"message": "Hello from A", "input": in}), nil
+func (h *Handler) HandleA(ctx context.Context, in *InputA) (map[string]any, error) {
+    return map[string]any{"message": "Hello from A", "input": in}, nil
 }
 
-func (h *Handler) HandleB(ctx context.Context, in *InputB) (httpserver.Response, error) {
-    return httpserver.NewJsonResponse(map[string]any{"message": "Hello from B", "input": in}), nil
+func (h *Handler) HandleB(ctx context.Context, in *InputB) (map[string]any, error) {
+    return map[string]any{"message": "Hello from B", "input": in}, nil
 }
 
 func (h *Handler) HandleErr(ctx context.Context) (httpserver.Response, error) {
@@ -99,25 +99,106 @@ Use struct tags to opt-in to sources:
 
 Bind variants:
 
-- `Bind(func(ctx context.Context, input *T) (Response, error))`
-- `BindR(func(ctx context.Context, req *http.Request, input *T) (Response, error))` (access raw *http.Request)
-- `BindN(func(ctx context.Context) (Response, error))` (no input)
-- `BindNR(func(ctx context.Context, req *http.Request) (Response, error))`
+- `Bind(func(ctx context.Context, input *T) (O, error))`
+- `BindR(func(ctx context.Context, req *http.Request, input *T) (O, error))` (access raw *http.Request)
+- `BindN(func(ctx context.Context) (O, error))` (no input)
+- `BindNR(func(ctx context.Context, req *http.Request) (O, error))`
+
+The public handler abstractions use the same input/output type parameters:
+
+```go
+type Handler[I, O any] interface {
+    Handle(context.Context, *I) (O, error)
+}
+
+type HandlerFunc[I, O any] func(context.Context, *I) (O, error)
+```
+
+The additional `O` parameter is a breaking API change from the former
+`Handler[I]` and `HandlerFunc[I]` declarations. Migrate existing declarations by
+adding their return type, for example `Handler[Input, Output]`. Handlers that
+return explicit responses should use `Handler[Input, httpserver.Response]`. The
+generated mock uses the same arity: `mocks.NewHandler[Input, Output](t)`.
+
+`O` can be any value. The server negotiates and encodes ordinary values using
+`Accept`, with JSON as the default representation. Return an explicit
+`Response` when the handler needs to control the status, headers, content type,
+or body directly.
 
 ## Responses
 
+Typed handler results are encoded according to the request's `Accept` header.
+The built-in server configures JSON by default:
+
 ```go
-httpserver.NewResponse(WithBody([]byte("raw")), WithStatusCode(201))
+func (h *Handler) Handle(ctx context.Context, input *Input) (Output, error) {
+    return Output{Ok: true}, nil
+}
+```
+
+To support additional representations, construct a negotiator and install it on
+the router that owns the routes:
+
+```go
+negotiator, err := httpserver.NewContentNegotiator(
+    httpserver.ContentTypeApplicationJson,
+    httpserver.JSONRepresentation(),
+    httpserver.XMLRepresentation(),
+)
+if err != nil {
+    return err
+}
+router.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
+```
+
+The middleware applies to typed results and to default responses produced by
+`ErrorMiddleware`. The built-in server installs a JSON-only negotiator by
+default, so an unsupported success `Accept` value returns `406 Not Acceptable`.
+The error response for that failure is negotiated as well and falls back to JSON
+if the requested representation cannot be selected or encoded.
+
+Return an explicit `Response` when the handler needs direct HTTP response
+control:
+
+```go
+httpserver.NewResponse(httpserver.WithBody([]byte("raw")), httpserver.WithStatusCode(201))
 httpserver.NewTextResponse("hello world")
 httpserver.NewJsonResponse(struct{Ok bool}{true})
 httpserver.NewStatusResponse(http.StatusNoContent)
 ```
+
+Explicit `Response` values are written as-is and do not participate in content
+negotiation. Error responses use the configured negotiator as well; if the
+requested representation cannot encode the error, the middleware falls back to
+JSON so it can still return the mapped status code.
 
 Options:
 
 - `WithBody([]byte)`
 - `WithHeader(key,value)` / `WithHeaders(http.Header)`
 - `WithStatusCode(int)`
+
+Custom error handlers keep full control by returning an explicit `Response`:
+
+```go
+httpserver.WithErrorHandler(func(statusCode int, err error) httpserver.Response {
+    return httpserver.NewJsonResponse(
+        map[string]string{"error": err.Error()},
+        httpserver.WithStatusCode(statusCode),
+    )
+})
+```
+
+`RegisterErrorMapper` adds a process-wide status mapper. Mappers run in
+registration order after an explicit `NewErrorWithStatus` and before the
+built-in validation and default mappings, so they should normally be registered
+once during application startup.
+
+The server's built-in recovery, overload rejection, and health-check responses
+use the server-level negotiator. A `Router.Use` override applies to routes
+registered on that router and their negotiated errors. Their explicit headers,
+such as `Retry-After`, remain unchanged. If a selected encoder fails, the error
+path preserves the mapped status and uses JSON as a fallback.
 
 ## Middleware
 
@@ -148,8 +229,8 @@ You can modularize route registration:
 ```go
 func Factory(ctx context.Context, cfg cfg.Config, log log.Logger, root *httpserver.Router) error {
     api := root.Group("api")
-    api.GET("/health", httpserver.BindN(func(ctx context.Context) (httpserver.Response, error) {
-        return httpserver.NewJsonResponse(map[string]string{"status":"ok"}), nil
+    api.GET("/health", httpserver.BindN(func(ctx context.Context) (map[string]string, error) {
+        return map[string]string{"status":"ok"}, nil
     }))
     return nil
 }

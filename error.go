@@ -1,11 +1,11 @@
 package httpserver
 
 import (
+	"encoding/xml"
 	"errors"
 	"net/http"
 	"sync"
 
-	"github.com/gin-gonic/gin"
 	"github.com/justtrackio/gosoline/pkg/validation"
 )
 
@@ -16,7 +16,7 @@ const (
 	ErrorPrivacyPrivate = "private"
 )
 
-// ErrorHandler converts an error and status code into an HTTP response.
+// ErrorHandler converts an error and status code into an explicit HTTP response.
 type ErrorHandler func(statusCode int, err error) Response
 
 // ErrorMapper maps an application error to an HTTP status code. The handled
@@ -73,8 +73,17 @@ func (e errorWithStatus) Unwrap() error {
 	return e.err
 }
 
+type errorResponseBody struct {
+	XMLName xml.Name `xml:"error" json:"-"`
+	Err     string   `json:"err" xml:"err"`
+}
+
+func errorHandlerBody(_ int, err error) any {
+	return errorResponseBody{Err: err.Error()}
+}
+
 func errorHandlerJson(statusCode int, err error) Response {
-	return NewJsonResponse(gin.H{"err": err.Error()}, WithStatusCode(statusCode))
+	return NewJsonResponse(errorResponseBody{Err: err.Error()}, WithStatusCode(statusCode))
 }
 
 // WithErrorHandler replaces the package-level default error response handler.
@@ -84,7 +93,19 @@ func WithErrorHandler(handler ErrorHandler) {
 
 // GetErrorHandler returns the package-level default error response handler.
 func GetErrorHandler() ErrorHandler {
+	if defaultErrorHandler == nil {
+		return errorHandlerJson
+	}
+
 	return defaultErrorHandler
+}
+
+func errorHandlerOutput(statusCode int, err error) any {
+	if defaultErrorHandler == nil {
+		return errorHandlerBody(statusCode, err)
+	}
+
+	return defaultErrorHandler(statusCode, err)
 }
 
 // GetErrorStatusCode returns the HTTP status code mapped from err, or 500 otherwise.
@@ -119,4 +140,4 @@ func errorStatusCodeFromMappers(err error) (int, bool) {
 	return 0, false
 }
 
-var defaultErrorHandler = errorHandlerJson
+var defaultErrorHandler ErrorHandler

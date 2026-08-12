@@ -27,11 +27,28 @@ func ErrorMiddlewareWithSettings(settings ErrorsSettings) gin.HandlerFunc {
 			err = fmt.Errorf("internal server error")
 		}
 
-		errorHandler := GetErrorHandler()
-		response := errorHandler(statusCode, err)
+		writeErrorResponse(c, statusCode, err)
+	}
+}
 
-		if err = BindHandleResponse(response, c); err != nil {
-			c.Errors = append(c.Errors, &gin.Error{Err: fmt.Errorf("error response error: %w", err), Type: gin.ErrorTypePrivate})
-		}
+func writeErrorResponse(c *gin.Context, statusCode int, err error) {
+	output := errorHandlerOutput(statusCode, err)
+	writeNegotiatedResponse(c, output, statusCode, errorResponseBody{Err: err.Error()})
+}
+
+func writeNegotiatedResponse(c *gin.Context, output any, statusCode int, fallback any) {
+	response, responseErr := responseFromOutputWithStatus(c, output, statusCode)
+	if responseErr != nil {
+		// If the requested representation cannot encode the response, use JSON
+		// as a last resort so the client still receives the mapped status.
+		response = NewJsonResponse(
+			fallback,
+			WithStatusCode(statusCode),
+			WithHeader(HeaderVary, HeaderAccept),
+		)
+	}
+
+	if err := BindHandleResponse(response, c); err != nil {
+		c.Errors = append(c.Errors, &gin.Error{Err: fmt.Errorf("error response error: %w", err), Type: gin.ErrorTypePrivate})
 	}
 }
