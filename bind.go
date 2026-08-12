@@ -69,7 +69,10 @@ func responseFromOutput[O any](ginCtx *gin.Context, output O) (Response, error) 
 }
 
 func responseFromOutputWithStatus[O any](ginCtx *gin.Context, output O, statusCode int) (Response, error) {
-	response, err := responseFromOutput(ginCtx, output)
+	var response Response
+	var err error
+
+	response, err = responseFromOutput(ginCtx, output)
 	if err != nil {
 		return nil, err
 	}
@@ -308,6 +311,7 @@ func BindHandleResponse(response Response, ginCtx *gin.Context) error {
 		for _, value := range values {
 			if strings.EqualFold(key, HeaderVary) {
 				addVaryHeader(ginCtx.Writer.Header(), value)
+
 				continue
 			}
 

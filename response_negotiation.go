@@ -43,7 +43,9 @@ type ContentNegotiator struct {
 // are only valid in the request Accept header. Accept matching considers the
 // media type, type/subtype wildcards, and q-values.
 func NewContentNegotiator(defaultMediaType string, representations ...ResponseRepresentation) (*ContentNegotiator, error) {
-	defaultMediaType, err := parseConfiguredMediaType(defaultMediaType)
+	var err error
+
+	defaultMediaType, err = parseConfiguredMediaType(defaultMediaType)
 	if err != nil {
 		return nil, fmt.Errorf("invalid default response media type: %w", err)
 	}
@@ -102,9 +104,7 @@ func NewDefaultResponseNegotiator() ResponseNegotiator {
 func JSONRepresentation() ResponseRepresentation {
 	return ResponseRepresentation{
 		MediaType: ContentTypeApplicationJson,
-		Encode: func(value any) ([]byte, error) {
-			return json.Marshal(value)
-		},
+		Encode:    json.Marshal,
 	}
 }
 
@@ -112,9 +112,7 @@ func JSONRepresentation() ResponseRepresentation {
 func XMLRepresentation() ResponseRepresentation {
 	return ResponseRepresentation{
 		MediaType: ContentTypeApplicationXml,
-		Encode: func(value any) ([]byte, error) {
-			return xml.Marshal(value)
-		},
+		Encode:    xml.Marshal,
 	}
 }
 
@@ -151,12 +149,16 @@ func (n *ContentNegotiator) Render(request *http.Request, value any) (Response, 
 	}
 
 	accept := strings.Join(request.Header.Values(HeaderAccept), ",")
-	representation, err := n.selectRepresentation(accept)
+	var representation ResponseRepresentation
+	var body []byte
+	var err error
+
+	representation, err = n.selectRepresentation(accept)
 	if err != nil {
 		return nil, err
 	}
 
-	body, err := representation.Encode(value)
+	body, err = representation.Encode(value)
 	if err != nil {
 		return nil, fmt.Errorf("encode %s response: %w", representation.MediaType, err)
 	}
@@ -242,6 +244,9 @@ type representationMatch struct {
 func parseAccept(value string) ([]acceptRange, error) {
 	parts := strings.Split(value, ",")
 	ranges := make([]acceptRange, 0, len(parts))
+	var mediaType string
+	var err error
+
 	for order, part := range parts {
 		part = strings.TrimSpace(part)
 		if part == "" {
@@ -249,7 +254,7 @@ func parseAccept(value string) ([]acceptRange, error) {
 		}
 
 		mediaTypeValue, parameters, _ := strings.Cut(part, ";")
-		mediaType, err := parseMediaRange(mediaTypeValue)
+		mediaType, err = parseMediaRange(mediaTypeValue)
 		if err != nil {
 			return nil, err
 		}
@@ -268,6 +273,7 @@ func parseAccept(value string) ([]acceptRange, error) {
 			if err != nil {
 				return nil, err
 			}
+
 			break
 		}
 
@@ -348,7 +354,10 @@ func mediaRangeSpecificity(mediaRange string, mediaType string) (int, bool) {
 }
 
 func parseConfiguredMediaType(value string) (string, error) {
-	mediaType, err := parseMediaRange(value)
+	var mediaType string
+	var err error
+
+	mediaType, err = parseMediaRange(value)
 	if err != nil {
 		return "", err
 	}
@@ -360,7 +369,10 @@ func parseConfiguredMediaType(value string) (string, error) {
 }
 
 func parseMediaRange(value string) (string, error) {
-	mediaType, _, err := mime.ParseMediaType(strings.TrimSpace(value))
+	var mediaType string
+	var err error
+
+	mediaType, _, err = mime.ParseMediaType(strings.TrimSpace(value))
 	if err != nil {
 		return "", err
 	}

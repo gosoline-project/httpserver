@@ -103,7 +103,9 @@ func (s *HttpServerTestSuite) TestTypedResponseIsMarshaledByServer(app suite.App
 	defer app.WaitDone()
 	defer app.Stop()
 
-	response, err := client.R().Get("/typed-response")
+	var response *resty.Response
+	var err error
+	response, err = client.R().Get("/typed-response")
 	if err != nil {
 		return err
 	}

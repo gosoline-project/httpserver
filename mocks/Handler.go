@@ -15,7 +15,8 @@ import (
 func NewHandler[I, O any](t interface {
 	mock.TestingT
 	Cleanup(func())
-}) *Handler[I, O] {
+},
+) *Handler[I, O] {
 	mock := &Handler[I, O]{}
 	mock.Mock.Test(t)
 

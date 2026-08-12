@@ -27,10 +27,12 @@ func (negotiatedHandler) Handle(context.Context, *struct{}) (negotiatedOutput, e
 	return negotiatedOutput{Name: "alice"}, nil
 }
 
-var _ httpserver.Handler[struct{}, negotiatedOutput] = negotiatedHandler{}
-var _ httpserver.HandlerFunc[struct{}, negotiatedOutput] = func(context.Context, *struct{}) (negotiatedOutput, error) {
-	return negotiatedOutput{}, nil
-}
+var (
+	_ httpserver.Handler[struct{}, negotiatedOutput]     = negotiatedHandler{}
+	_ httpserver.HandlerFunc[struct{}, negotiatedOutput] = func(context.Context, *struct{}) (negotiatedOutput, error) {
+		return negotiatedOutput{}, nil
+	}
+)
 
 func TestTypedHandlerInterfaceRendersOutput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
