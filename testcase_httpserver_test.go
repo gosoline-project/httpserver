@@ -167,9 +167,9 @@ func (s *HttpServerTestSuite) TestRecover(app suite.AppUnderTest, client *resty.
 	}
 
 	s.Equal(http.StatusInternalServerError, response.StatusCode())
-	s.Equal(httpserver.ContentTypeJson, response.Header().Get(httpserver.HeaderContentType))
+	s.Equal(httpserver.ContentTypeXml, response.Header().Get(httpserver.HeaderContentType))
 	s.Equal("Accept-Encoding, Accept", response.Header().Get(httpserver.HeaderVary))
-	s.JSONEq(`{"err":"something went wrong"}`, string(response.Body()))
+	s.Equal(`<error><err>something went wrong</err></error>`, string(response.Body()))
 
 	return nil
 }

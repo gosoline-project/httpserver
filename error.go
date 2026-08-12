@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"encoding/xml"
 	"errors"
 	"net/http"
 	"sync"
@@ -72,12 +73,17 @@ func (e errorWithStatus) Unwrap() error {
 	return e.err
 }
 
+type errorResponseBody struct {
+	XMLName xml.Name `xml:"error" json:"-"`
+	Err     string   `json:"err" xml:"err"`
+}
+
 func errorHandlerBody(_ int, err error) any {
-	return map[string]string{"err": err.Error()}
+	return errorResponseBody{Err: err.Error()}
 }
 
 func errorHandlerJson(statusCode int, err error) Response {
-	return NewJsonResponse(map[string]string{"err": err.Error()}, WithStatusCode(statusCode))
+	return NewJsonResponse(errorResponseBody{Err: err.Error()}, WithStatusCode(statusCode))
 }
 
 // WithErrorHandler replaces the package-level default error response handler.

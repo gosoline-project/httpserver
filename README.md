@@ -194,13 +194,13 @@ registration order after an explicit `NewErrorWithStatus` and before the
 built-in validation and default mappings, so they should normally be registered
 once during application startup.
 
-The server's built-in recovery, overload rejection, and health-check responses
-use the server-level negotiator. These responses are ordinary values, so a
-representation such as XML may not be able to encode map-based responses. A
-`Router.Use` override applies to routes registered on that router and their
-negotiated errors. Explicit headers, such as `Retry-After`, remain unchanged. If
-a selected encoder fails, the error path preserves the mapped status and uses
-JSON as a fallback.
+The server's built-in recovery and overload responses use dedicated response
+types and the server-level negotiator. Health-check responses use a map because
+module names are dynamic, so a representation such as XML may not be able to
+encode them and can fall back to JSON. A `Router.Use` override applies to routes
+registered on that router and their negotiated errors. Explicit headers, such as
+`Retry-After`, remain unchanged. If a selected encoder fails, the error path
+preserves the mapped status and uses JSON as a fallback.
 
 ## Middleware
 

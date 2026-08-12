@@ -109,7 +109,7 @@ func (s *MiddlewareConcurrencyTestSuite) TestRejectsWhenLimitReached() {
 	s.Equal(http.StatusNoContent, <-firstResult)
 }
 
-func (s *MiddlewareConcurrencyTestSuite) TestRejectsWithXMLAcceptFallsBackToJSON() {
+func (s *MiddlewareConcurrencyTestSuite) TestRejectsWithNegotiatedRepresentation() {
 	negotiator, err := httpserver.NewContentNegotiator(
 		httpserver.ContentTypeApplicationJson,
 		httpserver.JSONRepresentation(),
@@ -148,9 +148,8 @@ func (s *MiddlewareConcurrencyTestSuite) TestRejectsWithXMLAcceptFallsBackToJSON
 	router.ServeHTTP(recorder, request)
 
 	s.Equal(http.StatusTooManyRequests, recorder.Code)
-	s.Equal(httpserver.ContentTypeJson, recorder.Header().Get(httpserver.HeaderContentType))
-	s.Equal(httpserver.HeaderAccept, recorder.Header().Get(httpserver.HeaderVary))
-	s.JSONEq(`{"error":"server overloaded"}`, recorder.Body.String())
+	s.Equal(httpserver.ContentTypeXml, recorder.Header().Get(httpserver.HeaderContentType))
+	s.Equal(`<error><message>server overloaded</message></error>`, recorder.Body.String())
 
 	close(release)
 	s.Equal(http.StatusNoContent, <-firstResult)

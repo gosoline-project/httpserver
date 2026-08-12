@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"context"
+	"encoding/xml"
 	"net/http"
 	"strconv"
 	"time"
@@ -32,9 +33,14 @@ func ConcurrentRequestLimitMiddleware(settings ConcurrencySettings) gin.HandlerF
 			c.Request = MarkRequestRejected(c.Request)
 			writeRetryAfterHeader(c, settings.RetryAfter)
 			c.Abort()
-			writeNegotiatedResponse(c, map[string]string{"error": "server overloaded"}, settings.OverloadStatusCode)
+			writeNegotiatedResponse(c, overloadResponseBody{Error: "server overloaded"}, settings.OverloadStatusCode)
 		}
 	}
+}
+
+type overloadResponseBody struct {
+	XMLName xml.Name `xml:"error" json:"-"`
+	Error   string   `json:"error" xml:"message"`
 }
 
 func writeRetryAfterHeader(c *gin.Context, retryAfter time.Duration) {

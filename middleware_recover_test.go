@@ -113,7 +113,7 @@ func TestRecoveryWithSentryCaseResponseBodyWriterErrorButNotConnectionError(t *t
 	loggerMock.AssertNumberOfCalls(t, "Error", 1)
 }
 
-func TestRecoveryWithSentryFallsBackToJSONWhenXMLCannotEncodeMap(t *testing.T) {
+func TestRecoveryWithSentryUsesNegotiatedRepresentation(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	negotiator, err := httpserver.NewContentNegotiator(
@@ -138,9 +138,8 @@ func TestRecoveryWithSentryFallsBackToJSONWhenXMLCannotEncodeMap(t *testing.T) {
 	r.ServeHTTP(recorder, request)
 
 	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
-	assert.Equal(t, httpserver.ContentTypeJson, recorder.Header().Get(httpserver.HeaderContentType))
-	assert.Equal(t, httpserver.HeaderAccept, recorder.Header().Get(httpserver.HeaderVary))
-	assert.JSONEq(t, `{"err":"something went wrong"}`, recorder.Body.String())
+	assert.Equal(t, httpserver.ContentTypeXml, recorder.Header().Get(httpserver.HeaderContentType))
+	assert.Equal(t, `<error><err>something went wrong</err></error>`, recorder.Body.String())
 }
 
 func TestRecoveryWithSentryCaseString(t *testing.T) {
