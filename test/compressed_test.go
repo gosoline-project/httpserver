@@ -29,7 +29,7 @@ func (s *CompressedTestSuite) SetupSuite() []suite.Option {
 }
 
 func (s *CompressedTestSuite) SetupHttpServerRouter() moduleHttpserver.RouterFactory {
-	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *moduleHttpserver.Router, _ *moduleHttpserver.HttpServer) error {
+	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *moduleHttpserver.Router) error {
 		handler := moduleHttpserver.Bind(func(ctx context.Context, input *map[string]any) (moduleHttpserver.Response, error) {
 			return moduleHttpserver.NewJsonResponse(*input), nil
 		}, binding.JSON)

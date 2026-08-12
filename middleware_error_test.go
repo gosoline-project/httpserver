@@ -82,8 +82,9 @@ func (s *errorMiddlewareTestSuite) TestErrorResponseUsesNegotiatedRepresentation
 }
 
 func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerBodyUsesNegotiation() {
-	server := &httpserver.HttpServer{}
-	server.WithErrorHandler(func(statusCode int, err error) any {
+	defer httpserver.WithErrorHandler(nil)
+
+	httpserver.WithErrorHandler(func(statusCode int, err error) any {
 		s.Equal(http.StatusBadRequest, statusCode)
 		s.Equal("bad request detail", err.Error())
 
@@ -93,7 +94,7 @@ func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerBodyUsesNegotiation() {
 	})
 
 	err := httpserver.NewErrorWithStatus(http.StatusBadRequest, errors.New("bad request detail"))
-	recorder := s.serveErrorMiddlewareRequest(err, server.ErrorMiddleware())
+	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddleware())
 
 	s.Equal(http.StatusBadRequest, recorder.Code)
 	s.Equal(httpserver.ContentTypeJson, recorder.Header().Get(httpserver.HeaderContentType))
@@ -101,8 +102,9 @@ func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerBodyUsesNegotiation() {
 }
 
 func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerResponsePreservesExplicitResponse() {
-	server := &httpserver.HttpServer{}
-	server.WithErrorHandler(func(statusCode int, err error) any {
+	defer httpserver.WithErrorHandler(nil)
+
+	httpserver.WithErrorHandler(func(statusCode int, err error) any {
 		s.Equal(http.StatusBadRequest, statusCode)
 		s.Equal("bad request detail", err.Error())
 
@@ -124,7 +126,7 @@ func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerResponsePreservesExplic
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
-	router.Use(server.ErrorMiddleware())
+	router.Use(httpserver.ErrorMiddleware())
 	router.GET("/error", func(c *gin.Context) {
 		require.NotNil(s.T(), c.Error(httpserver.NewErrorWithStatus(http.StatusBadRequest, errors.New("bad request detail"))))
 	})
@@ -138,6 +140,18 @@ func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerResponsePreservesExplic
 	s.Equal(httpserver.ContentTypeTextPlain, recorder.Header().Get(httpserver.HeaderContentType))
 	s.Equal("custom", recorder.Header().Get("X-Error-Source"))
 	s.Equal("custom error", recorder.Body.String())
+}
+
+func (s *errorMiddlewareTestSuite) TestGetErrorHandlerReturnsJsonCompatibilityResponse() {
+	defer httpserver.WithErrorHandler(nil)
+
+	response := httpserver.GetErrorHandler()(http.StatusBadRequest, errors.New("bad request detail"))
+
+	s.Equal(http.StatusBadRequest, response.StatusCode())
+	s.Equal(httpserver.ContentTypeJson, response.ContentType())
+	body, err := response.Body()
+	s.Require().NoError(err)
+	s.JSONEq(`{"err":"bad request detail"}`, string(body))
 }
 
 func (s *errorMiddlewareTestSuite) TestErrorResponseFallsBackToJSONWhenEncoderFails() {
@@ -173,9 +187,8 @@ func (s *errorMiddlewareTestSuite) TestErrorResponseFallsBackToJSONWhenEncoderFa
 }
 
 func (s *errorMiddlewareTestSuite) TestRegisteredErrorMapperReturnsForbidden() {
-	server := &httpserver.HttpServer{}
 	deniedError := errors.New("permission denied")
-	server.RegisterErrorMapper(func(err error) (int, bool) {
+	httpserver.RegisterErrorMapper(func(err error) (int, bool) {
 		if errors.Is(err, deniedError) {
 			return http.StatusForbidden, true
 		}
@@ -184,7 +197,7 @@ func (s *errorMiddlewareTestSuite) TestRegisteredErrorMapperReturnsForbidden() {
 	})
 
 	err := fmt.Errorf("handler failed: %w", deniedError)
-	recorder := s.serveErrorMiddlewareRequest(err, server.ErrorMiddleware())
+	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddleware())
 
 	s.Equal(http.StatusForbidden, recorder.Code)
 	s.JSONEq(`{"err":"handler failed: permission denied"}`, recorder.Body.String())

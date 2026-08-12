@@ -30,7 +30,7 @@ func (s *ConnectionPressureTestSuite) SetupSuite() []suite.Option {
 }
 
 func (s *ConnectionPressureTestSuite) SetupHttpServerRouter() moduleHttpserver.RouterFactory {
-	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *moduleHttpserver.Router, _ *moduleHttpserver.HttpServer) error {
+	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *moduleHttpserver.Router) error {
 		router.GET("/ok", func(c *gin.Context) {
 			c.Status(netHttp.StatusNoContent)
 		})

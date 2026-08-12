@@ -9,7 +9,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
 
 	"github.com/gin-contrib/location"
@@ -48,11 +47,6 @@ type HttpServer struct {
 	settings       *Settings
 	metricRecorder ServerMetricRecorder
 	healthy        atomic.Bool
-
-	errorHandlerMu sync.RWMutex
-	errorHandler   ErrorHandler
-	errorMappersMu sync.RWMutex
-	errorMappers   []ErrorMapper
 }
 
 // NewServer creates a module factory for a named HTTP server using config-based settings.
@@ -98,11 +92,6 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 
 		metricRecorder := newServerMetricRecorder(name)
 		metricMiddleware, setupMetricMiddleware := NewMetricMiddleware(name, metricRecorder)
-		apiServer := &HttpServer{
-			logger:         logger,
-			settings:       settings,
-			metricRecorder: metricRecorder,
-		}
 
 		if compressionMiddlewares, err = configureCompression(settings.Compression); err != nil {
 			return nil, fmt.Errorf("could not configure compression: %w", err)
@@ -121,8 +110,8 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 		router.Use(LoggingMiddleware(logger, settings.Logging))
 		router.Use(compressionMiddlewares...)
 		router.Use(MaxBodySizeMiddleware(settings.MaxBodyBytes))
-		router.Use(apiServer.ErrorMiddlewareWithSettings(settings.Errors))
-		router.Use(apiServer.RecoveryWithSentry(logger))
+		router.Use(ErrorMiddlewareWithSettings(settings.Errors))
+		router.Use(RecoveryWithSentry(logger))
 		router.Use(location.Default())
 		router.Use(connectionLifeCycleInterceptor)
 
@@ -134,7 +123,7 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 		router.Use(ChaosMiddleware(ctx, logger, settings.Chaos))
 
 		definitions := &Router{}
-		if err = definer(ctx, config, logger.WithChannel("handler"), definitions, apiServer); err != nil {
+		if err = definer(ctx, config, logger.WithChannel("handler"), definitions); err != nil {
 			return nil, fmt.Errorf("could not define routes: %w", err)
 		}
 
@@ -148,7 +137,7 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 			return nil, fmt.Errorf("can not append metadata: %w", err)
 		}
 
-		return newWithInterfaces(ctx, logger, router, tracingInstrumentor, settings, metricRecorder, apiServer)
+		return NewWithInterfaces(ctx, logger, router, tracingInstrumentor, settings, metricRecorder)
 	}
 }
 
@@ -160,18 +149,6 @@ func NewWithInterfaces(
 	tracer tracing.Instrumentor,
 	settings *Settings,
 	metricRecorder ServerMetricRecorder,
-) (*HttpServer, error) {
-	return newWithInterfaces(ctx, logger, router, tracer, settings, metricRecorder, &HttpServer{})
-}
-
-func newWithInterfaces(
-	ctx context.Context,
-	logger log.Logger,
-	router *gin.Engine,
-	tracer tracing.Instrumentor,
-	settings *Settings,
-	metricRecorder ServerMetricRecorder,
-	apiServer *HttpServer,
 ) (*HttpServer, error) {
 	connectionPressureManager := NewConnectionPressureManager(ctx, metricRecorder)
 
@@ -201,11 +178,13 @@ func newWithInterfaces(
 
 	logger.Info(ctx, "serving httpserver requests on address %s", listener.Addr().String())
 
-	apiServer.logger = logger
-	apiServer.server = server
-	apiServer.listener = listener
-	apiServer.settings = settings
-	apiServer.metricRecorder = metricRecorder
+	apiServer := &HttpServer{
+		logger:         logger,
+		server:         server,
+		listener:       listener,
+		settings:       settings,
+		metricRecorder: metricRecorder,
+	}
 
 	return apiServer, nil
 }

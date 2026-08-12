@@ -6,26 +6,13 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ErrorMiddleware creates error middleware with default settings and a private
-// default error configuration.
+// ErrorMiddleware creates error middleware with default settings.
 func ErrorMiddleware() gin.HandlerFunc {
-	return (&HttpServer{}).ErrorMiddleware()
+	return ErrorMiddlewareWithSettings(ErrorsSettings{})
 }
 
-// ErrorMiddlewareWithSettings creates error middleware with a private default
-// error configuration. Use HttpServer.ErrorMiddlewareWithSettings to use the
-// configuration of a specific HTTP server instance.
+// ErrorMiddlewareWithSettings converts Gin context errors into HTTP error responses.
 func ErrorMiddlewareWithSettings(settings ErrorsSettings) gin.HandlerFunc {
-	return (&HttpServer{}).ErrorMiddlewareWithSettings(settings)
-}
-
-// ErrorMiddleware creates error middleware with default settings for this HTTP server.
-func (s *HttpServer) ErrorMiddleware() gin.HandlerFunc {
-	return s.ErrorMiddlewareWithSettings(ErrorsSettings{})
-}
-
-// ErrorMiddlewareWithSettings converts Gin context errors into HTTP error responses for this HTTP server.
-func (s *HttpServer) ErrorMiddlewareWithSettings(settings ErrorsSettings) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 
@@ -34,25 +21,19 @@ func (s *HttpServer) ErrorMiddlewareWithSettings(settings ErrorsSettings) gin.Ha
 		}
 
 		err := c.Errors.Last().Err
-		statusCode := s.GetErrorStatusCode(err)
+		statusCode := GetErrorStatusCode(err)
 
 		if statusCode >= 500 && (settings.Privacy == ErrorPrivacyPrivate || settings.Privacy == "") {
 			err = fmt.Errorf("internal server error")
 		}
 
-		writeErrorResponse(c, s, statusCode, err)
+		writeErrorResponse(c, statusCode, err)
 	}
 }
 
-func writeErrorResponse(c *gin.Context, server *HttpServer, statusCode int, err error) {
-	server.errorHandlerMu.RLock()
-	handler := server.errorHandler
-	server.errorHandlerMu.RUnlock()
-	if handler == nil {
-		handler = defaultErrorHandler
-	}
-
-	writeNegotiatedResponse(c, handler(statusCode, err), statusCode)
+func writeErrorResponse(c *gin.Context, statusCode int, err error) {
+	output := errorHandlerOutput(statusCode, err)
+	writeNegotiatedResponse(c, output, statusCode)
 }
 
 func writeNegotiatedResponse(c *gin.Context, output any, statusCode int) {
