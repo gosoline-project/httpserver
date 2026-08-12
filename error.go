@@ -16,8 +16,10 @@ const (
 	ErrorPrivacyPrivate = "private"
 )
 
-// ErrorHandler converts an error and status code into an explicit HTTP response.
-type ErrorHandler func(statusCode int, err error) Response
+// ErrorHandler converts an error and status code into a response body.
+// Returning a Response remains an escape hatch for callers that need to control
+// the response directly; ordinary values are rendered by response negotiation.
+type ErrorHandler func(statusCode int, err error) any
 
 // ErrorMapper maps an application error to an HTTP status code. The handled
 // result indicates whether the mapper applies to the error.
@@ -82,33 +84,44 @@ func errorHandlerBody(_ int, err error) any {
 	return errorResponseBody{Err: err.Error()}
 }
 
-func errorHandlerJson(statusCode int, err error) Response {
-	return NewJsonResponse(errorResponseBody{Err: err.Error()}, WithStatusCode(statusCode))
-}
-
-// WithErrorHandler replaces the package-level default error response handler.
-func WithErrorHandler(handler ErrorHandler) {
-	if handler == nil {
-		defaultErrorHandler = errorHandlerJson
-		hasCustomErrorHandler = false
-
-		return
+// WithErrorHandler replaces the package-level error body handler. The handler
+// should normally be an ErrorHandler. Legacy handlers returning Response are
+// accepted and remain an explicit response escape hatch.
+func WithErrorHandler(handler any) {
+	switch handler := handler.(type) {
+	case nil:
+		defaultErrorHandler = ErrorHandler(errorHandlerBody)
+	case ErrorHandler:
+		defaultErrorHandler = handler
+	case func(int, error) any:
+		defaultErrorHandler = ErrorHandler(handler)
+	case func(int, error) Response:
+		defaultErrorHandler = func(statusCode int, err error) any {
+			return handler(statusCode, err)
+		}
+	default:
+		panic("error handler must have signature func(int, error) any or func(int, error) Response")
 	}
-
-	defaultErrorHandler = handler
-	hasCustomErrorHandler = true
 }
 
-// GetErrorHandler returns the package-level default error response handler.
-func GetErrorHandler() ErrorHandler {
-	return defaultErrorHandler
+// GetErrorHandler returns a compatibility handler that produces an explicit
+// JSON response. New code should return errors and let ErrorMiddleware render
+// the negotiated response body.
+//
+// Deprecated: return an error from the handler instead of constructing a
+// response through this accessor.
+func GetErrorHandler() func(statusCode int, err error) Response {
+	return func(statusCode int, err error) Response {
+		output := defaultErrorHandler(statusCode, err)
+		if response, ok := output.(Response); ok {
+			return response
+		}
+
+		return NewJsonResponse(output, WithStatusCode(statusCode))
+	}
 }
 
 func errorHandlerOutput(statusCode int, err error) any {
-	if !hasCustomErrorHandler {
-		return errorHandlerBody(statusCode, err)
-	}
-
 	return defaultErrorHandler(statusCode, err)
 }
 
@@ -144,7 +157,4 @@ func errorStatusCodeFromMappers(err error) (int, bool) {
 	return 0, false
 }
 
-var (
-	defaultErrorHandler   ErrorHandler = errorHandlerJson
-	hasCustomErrorHandler bool
-)
+var defaultErrorHandler ErrorHandler = ErrorHandler(errorHandlerBody)

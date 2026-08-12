@@ -81,6 +81,26 @@ func (s *errorMiddlewareTestSuite) TestErrorResponseUsesNegotiatedRepresentation
 	s.Equal(`<error><err>bad request detail</err></error>`, recorder.Body.String())
 }
 
+func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerBodyUsesNegotiation() {
+	defer httpserver.WithErrorHandler(nil)
+
+	httpserver.WithErrorHandler(func(statusCode int, err error) any {
+		s.Equal(http.StatusBadRequest, statusCode)
+		s.Equal("bad request detail", err.Error())
+
+		return struct {
+			Error string `json:"error"`
+		}{Error: err.Error()}
+	})
+
+	err := httpserver.NewErrorWithStatus(http.StatusBadRequest, errors.New("bad request detail"))
+	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddleware())
+
+	s.Equal(http.StatusBadRequest, recorder.Code)
+	s.Equal(httpserver.ContentTypeJson, recorder.Header().Get(httpserver.HeaderContentType))
+	s.JSONEq(`{"error":"bad request detail"}`, recorder.Body.String())
+}
+
 func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerResponsePreservesExplicitResponse() {
 	defer httpserver.WithErrorHandler(nil)
 
@@ -120,6 +140,18 @@ func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerResponsePreservesExplic
 	s.Equal(httpserver.ContentTypeTextPlain, recorder.Header().Get(httpserver.HeaderContentType))
 	s.Equal("custom", recorder.Header().Get("X-Error-Source"))
 	s.Equal("custom error", recorder.Body.String())
+}
+
+func (s *errorMiddlewareTestSuite) TestGetErrorHandlerReturnsJsonCompatibilityResponse() {
+	defer httpserver.WithErrorHandler(nil)
+
+	response := httpserver.GetErrorHandler()(http.StatusBadRequest, errors.New("bad request detail"))
+
+	s.Equal(http.StatusBadRequest, response.StatusCode())
+	s.Equal(httpserver.ContentTypeJson, response.ContentType())
+	body, err := response.Body()
+	s.Require().NoError(err)
+	s.JSONEq(`{"err":"bad request detail"}`, string(body))
 }
 
 func (s *errorMiddlewareTestSuite) TestErrorResponseFallsBackToJSONWhenEncoderFails() {

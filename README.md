@@ -178,16 +178,21 @@ Options:
 - `WithHeader(key,value)` / `WithHeaders(http.Header)`
 - `WithStatusCode(int)`
 
-Custom error handlers keep full control by returning an explicit `Response`:
+Custom error handlers should normally return an ordinary body value so the
+configured negotiator can encode it:
 
 ```go
-httpserver.WithErrorHandler(func(statusCode int, err error) httpserver.Response {
-    return httpserver.NewJsonResponse(
-        map[string]string{"error": err.Error()},
-        httpserver.WithStatusCode(statusCode),
-    )
+httpserver.WithErrorHandler(func(statusCode int, err error) any {
+    return struct {
+        Error string `json:"error"`
+    }{Error: err.Error()}
 })
 ```
+
+The mapped `statusCode` is applied by the middleware. Returning an explicit
+`Response` remains an escape hatch for legacy handlers or cases that need to
+control the status, headers, content type, or body directly; such responses
+bypass content negotiation.
 
 `RegisterErrorMapper` adds a process-wide status mapper. Mappers run in
 registration order after an explicit `NewErrorWithStatus` and before the
