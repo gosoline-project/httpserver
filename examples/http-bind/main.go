@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	httpserver.RunDefaultServer(func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
+	httpserver.RunDefaultServer(func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router, _ *httpserver.HttpServer) error {
 		router.HandleWith(httpserver.With(NewHandler, func(router *httpserver.Router, s *Handler) {
 			router.POST("/a", httpserver.Bind(s.HandleA))
 			router.GET("/b", httpserver.Bind(s.HandleB))

@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	httpserver.RunDefaultServer(func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
+	httpserver.RunDefaultServer(func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router, _ *httpserver.HttpServer) error {
 		router.GET("/hello/:name", func(ginCtx *gin.Context) {
 			name := ginCtx.Param("name")
 			if _, err := ginCtx.Writer.WriteString("Hello, " + name); err != nil {

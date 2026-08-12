@@ -38,7 +38,7 @@ func (s *HttpServerExtendedTestSuite) SetupSuite() []suite.Option {
 }
 
 func (s *HttpServerExtendedTestSuite) SetupHttpServerRouter() httpserver.RouterFactory {
-	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
+	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router, _ *httpserver.HttpServer) error {
 		router.GET("/noop", func(ginCtx *gin.Context) {
 			ginCtx.String(http.StatusOK, "{}")
 		})

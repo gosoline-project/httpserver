@@ -40,7 +40,7 @@ func (s *ConcurrencyTestSuite) SetupTest() error {
 }
 
 func (s *ConcurrencyTestSuite) SetupHttpServerRouter() moduleHttpserver.RouterFactory {
-	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *moduleHttpserver.Router) error {
+	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *moduleHttpserver.Router, _ *moduleHttpserver.HttpServer) error {
 		router.GET("/block", func(c *gin.Context) {
 			s.enteredHandler.Signal()
 

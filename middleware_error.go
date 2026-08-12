@@ -6,13 +6,26 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// ErrorMiddleware creates error middleware with default settings.
+// ErrorMiddleware creates error middleware with default settings and a private
+// default error configuration.
 func ErrorMiddleware() gin.HandlerFunc {
-	return ErrorMiddlewareWithSettings(ErrorsSettings{})
+	return (&HttpServer{}).ErrorMiddleware()
 }
 
-// ErrorMiddlewareWithSettings converts Gin context errors into HTTP error responses.
+// ErrorMiddlewareWithSettings creates error middleware with a private default
+// error configuration. Use HttpServer.ErrorMiddlewareWithSettings to use the
+// configuration of a specific HTTP server instance.
 func ErrorMiddlewareWithSettings(settings ErrorsSettings) gin.HandlerFunc {
+	return (&HttpServer{}).ErrorMiddlewareWithSettings(settings)
+}
+
+// ErrorMiddleware creates error middleware with default settings for this HTTP server.
+func (s *HttpServer) ErrorMiddleware() gin.HandlerFunc {
+	return s.ErrorMiddlewareWithSettings(ErrorsSettings{})
+}
+
+// ErrorMiddlewareWithSettings converts Gin context errors into HTTP error responses for this HTTP server.
+func (s *HttpServer) ErrorMiddlewareWithSettings(settings ErrorsSettings) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		c.Next()
 
@@ -21,19 +34,25 @@ func ErrorMiddlewareWithSettings(settings ErrorsSettings) gin.HandlerFunc {
 		}
 
 		err := c.Errors.Last().Err
-		statusCode := GetErrorStatusCode(err)
+		statusCode := s.GetErrorStatusCode(err)
 
 		if statusCode >= 500 && (settings.Privacy == ErrorPrivacyPrivate || settings.Privacy == "") {
 			err = fmt.Errorf("internal server error")
 		}
 
-		writeErrorResponse(c, statusCode, err)
+		writeErrorResponse(c, s, statusCode, err)
 	}
 }
 
-func writeErrorResponse(c *gin.Context, statusCode int, err error) {
-	output := errorHandlerOutput(statusCode, err)
-	writeNegotiatedResponse(c, output, statusCode)
+func writeErrorResponse(c *gin.Context, server *HttpServer, statusCode int, err error) {
+	server.errorHandlerMu.RLock()
+	handler := server.errorHandler
+	server.errorHandlerMu.RUnlock()
+	if handler == nil {
+		handler = defaultErrorHandler
+	}
+
+	writeNegotiatedResponse(c, handler(statusCode, err), statusCode)
 }
 
 func writeNegotiatedResponse(c *gin.Context, output any, statusCode int) {

@@ -42,7 +42,7 @@ func (s *HttpServerBindTestSuite) SetupSuite() []suite.Option {
 }
 
 func (s *HttpServerBindTestSuite) SetupHttpServerRouter() httpserver.RouterFactory {
-	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
+	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router, _ *httpserver.HttpServer) error {
 		router.POST("/json", httpserver.Bind(func(ctx context.Context, input *InputJson) (httpserver.Response, error) {
 			return httpserver.NewJsonResponse(input), nil
 		}))

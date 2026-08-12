@@ -17,7 +17,8 @@ type (
 	}
 	HandlerFunc[I, O any] func(ctx context.Context, input *I) (O, error)
 	// RouterFactory defines routes on the provided router during server startup.
-	RouterFactory func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router) error
+	// The server argument can be used to configure instance-specific error handling.
+	RouterFactory func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router, server *HttpServer) error
 	// MiddlewareFactory creates a Gin middleware from application dependencies and server settings.
 	MiddlewareFactory func(ctx context.Context, config cfg.Config, logger log.Logger, settings *Settings) (gin.HandlerFunc, error)
 )

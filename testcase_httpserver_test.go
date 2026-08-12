@@ -37,7 +37,7 @@ func (s *HttpServerTestSuite) SetupSuite() []suite.Option {
 }
 
 func (s *HttpServerTestSuite) SetupHttpServerRouter() httpserver.RouterFactory {
-	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
+	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router, _ *httpserver.HttpServer) error {
 		negotiator, err := httpserver.NewContentNegotiator(
 			httpserver.ContentTypeApplicationJson,
 			httpserver.JSONRepresentation(),

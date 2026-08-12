@@ -34,7 +34,7 @@ import (
 )
 
 func main() {
-    httpserver.RunDefaultServer(func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
+    httpserver.RunDefaultServer(func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router, server *httpserver.HttpServer) error {
         router.HandleWith(httpserver.With(NewHandler, func(router *httpserver.Router, h *Handler) {
             router.POST("/a", httpserver.Bind(h.HandleA))
             router.GET("/b", httpserver.Bind(h.HandleB))
@@ -178,26 +178,29 @@ Options:
 - `WithHeader(key,value)` / `WithHeaders(http.Header)`
 - `WithStatusCode(int)`
 
-Custom error handlers should normally return an ordinary body value so the
-configured negotiator can encode it:
+Inside a `RouterFactory`, configure a custom error handler on the provided
+server instance:
 
 ```go
-httpserver.WithErrorHandler(func(statusCode int, err error) any {
+server.WithErrorHandler(func(statusCode int, err error) any {
     return struct {
         Error string `json:"error"`
     }{Error: err.Error()}
 })
 ```
 
-The mapped `statusCode` is applied by the middleware. Returning an explicit
-`Response` remains an escape hatch for cases that need to control the status,
-headers, content type, or body directly; such responses bypass content
-negotiation.
+The handler should normally return an ordinary body value so the configured
+negotiator can encode it. The mapped `statusCode` is applied by the middleware.
+Returning an explicit `Response` remains an escape hatch for cases that need to
+control the status, headers, content type, or body directly; such responses
+bypass content negotiation.
 
-`RegisterErrorMapper` adds a process-wide status mapper. Mappers run in
-registration order after an explicit `NewErrorWithStatus` and before the
-built-in validation and default mappings, so they should normally be registered
-once during application startup.
+`HttpServer.WithErrorHandler` configures the error body handler for that server
+instance. The `server` argument is available in every `RouterFactory`, so
+servers in the same process can use different handlers. `RegisterErrorMapper`
+is likewise an `HttpServer` method; mappers run in registration order after an
+explicit `NewErrorWithStatus` and before the built-in validation and default
+mappings.
 
 The server's built-in recovery and overload responses use dedicated response
 types and the server-level negotiator. Health-check responses use a map because
@@ -234,7 +237,7 @@ Table-driven tests for binding and responses are provided in the repository as e
 You can modularize route registration:
 
 ```go
-func Factory(ctx context.Context, cfg cfg.Config, log log.Logger, root *httpserver.Router) error {
+func Factory(ctx context.Context, cfg cfg.Config, log log.Logger, root *httpserver.Router, server *httpserver.HttpServer) error {
     api := root.Group("api")
     api.GET("/health", httpserver.BindN(func(ctx context.Context) (map[string]string, error) {
         return map[string]string{"status":"ok"}, nil

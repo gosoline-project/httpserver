@@ -4,7 +4,6 @@ import (
 	"encoding/xml"
 	"errors"
 	"net/http"
-	"sync"
 
 	"github.com/justtrackio/gosoline/pkg/validation"
 )
@@ -24,25 +23,6 @@ type ErrorHandler func(statusCode int, err error) any
 // ErrorMapper maps an application error to an HTTP status code. The handled
 // result indicates whether the mapper applies to the error.
 type ErrorMapper func(err error) (statusCode int, handled bool)
-
-var (
-	errorMappersMu sync.RWMutex
-	errorMappers   []ErrorMapper
-)
-
-// RegisterErrorMapper adds a status mapper used by GetErrorStatusCode.
-// Mappers are evaluated in registration order after explicit ErrorWithStatus
-// values and before built-in status mappings.
-func RegisterErrorMapper(mapper ErrorMapper) {
-	if mapper == nil {
-		panic("error mapper is required")
-	}
-
-	errorMappersMu.Lock()
-	defer errorMappersMu.Unlock()
-
-	errorMappers = append(errorMappers, mapper)
-}
 
 // ErrorWithStatus is an error that carries an explicit HTTP status code.
 type ErrorWithStatus interface {
@@ -80,48 +60,39 @@ type errorResponseBody struct {
 	Err     string   `json:"err" xml:"err"`
 }
 
-// WithErrorHandler replaces the package-level error body handler.
-func WithErrorHandler(handler ErrorHandler) {
+// WithErrorHandler replaces the error body handler for this HTTP server.
+func (s *HttpServer) WithErrorHandler(handler ErrorHandler) {
 	if handler == nil {
-		defaultErrorHandler = func(_ int, err error) any {
-			return errorResponseBody{Err: err.Error()}
-		}
-
-		return
+		handler = defaultErrorHandler
 	}
 
-	defaultErrorHandler = handler
+	s.errorHandlerMu.Lock()
+	s.errorHandler = handler
+	s.errorHandlerMu.Unlock()
 }
 
-// GetErrorHandler returns a compatibility handler that produces an explicit
-// JSON response. New code should return errors and let ErrorMiddleware render
-// the negotiated response body.
-//
-// Deprecated: return an error from the handler instead of constructing a
-// response through this accessor.
-func GetErrorHandler() func(statusCode int, err error) Response {
-	return func(statusCode int, err error) Response {
-		output := defaultErrorHandler(statusCode, err)
-		if response, ok := output.(Response); ok {
-			return response
-		}
-
-		return NewJsonResponse(output, WithStatusCode(statusCode))
+// RegisterErrorMapper adds a status mapper for this HTTP server. Mappers are
+// evaluated in registration order after explicit ErrorWithStatus values and
+// before built-in status mappings.
+func (s *HttpServer) RegisterErrorMapper(mapper ErrorMapper) {
+	if mapper == nil {
+		panic("error mapper is required")
 	}
+
+	s.errorMappersMu.Lock()
+	s.errorMappers = append(s.errorMappers, mapper)
+	s.errorMappersMu.Unlock()
 }
 
-func errorHandlerOutput(statusCode int, err error) any {
-	return defaultErrorHandler(statusCode, err)
-}
-
-// GetErrorStatusCode returns the HTTP status code mapped from err, or 500 otherwise.
-func GetErrorStatusCode(err error) int {
+// GetErrorStatusCode returns the HTTP status code mapped from err for this
+// server, or 500 otherwise.
+func (s *HttpServer) GetErrorStatusCode(err error) int {
 	var errWithStatus ErrorWithStatus
 	if errors.As(err, &errWithStatus) {
 		return errWithStatus.StatusCode()
 	}
 
-	if statusCode, handled := errorStatusCodeFromMappers(err); handled {
+	if statusCode, handled := s.errorStatusCodeFromMappers(err); handled {
 		return statusCode
 	}
 
@@ -132,10 +103,10 @@ func GetErrorStatusCode(err error) int {
 	return http.StatusInternalServerError
 }
 
-func errorStatusCodeFromMappers(err error) (int, bool) {
-	errorMappersMu.RLock()
-	mappers := append([]ErrorMapper(nil), errorMappers...)
-	errorMappersMu.RUnlock()
+func (s *HttpServer) errorStatusCodeFromMappers(err error) (int, bool) {
+	s.errorMappersMu.RLock()
+	mappers := append([]ErrorMapper(nil), s.errorMappers...)
+	s.errorMappersMu.RUnlock()
 
 	for _, mapper := range mappers {
 		if statusCode, handled := mapper(err); handled {
@@ -146,6 +117,6 @@ func errorStatusCodeFromMappers(err error) (int, bool) {
 	return 0, false
 }
 
-var defaultErrorHandler ErrorHandler = func(_ int, err error) any {
+func defaultErrorHandler(_ int, err error) any {
 	return errorResponseBody{Err: err.Error()}
 }

@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	httpserver.RunDefaultServer(func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
+	httpserver.RunDefaultServer(func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router, _ *httpserver.HttpServer) error {
 		router.GET("/bla", func(ctx *gin.Context) {
 			if _, err := ctx.Writer.WriteString("bla"); err != nil {
 				ginErr := ctx.Error(err)

@@ -11,6 +11,12 @@ import (
 
 // RecoveryWithSentry recovers panics, logs them, and returns a negotiated 500 response.
 func RecoveryWithSentry(logger log.Logger) gin.HandlerFunc {
+	return (&HttpServer{}).RecoveryWithSentry(logger)
+}
+
+// RecoveryWithSentry recovers panics, logs them, and returns a negotiated 500
+// response using this HTTP server's error handler.
+func (s *HttpServer) RecoveryWithSentry(logger log.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		defer func() {
 			var rerr error
@@ -37,7 +43,7 @@ func RecoveryWithSentry(logger log.Logger) gin.HandlerFunc {
 
 			logger.Error(ctx, "%w", rerr)
 			c.Abort()
-			writeErrorResponse(c, http.StatusInternalServerError, rerr)
+			writeErrorResponse(c, s, http.StatusInternalServerError, rerr)
 		}()
 
 		c.Next()
