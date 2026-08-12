@@ -175,7 +175,9 @@ func (n *ContentNegotiator) selectRepresentation(accept string) (ResponseReprese
 		return n.representation(n.defaultMediaType), nil
 	}
 
-	ranges, err := parseAccept(accept)
+	var ranges []acceptRange
+	var err error
+	ranges, err = parseAccept(accept)
 	if err != nil {
 		return ResponseRepresentation{}, &NotAcceptableError{Accept: accept}
 	}
