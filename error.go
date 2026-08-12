@@ -1,7 +1,6 @@
 package httpserver
 
 import (
-	"encoding/xml"
 	"errors"
 	"net/http"
 	"sync"
@@ -73,35 +72,34 @@ func (e errorWithStatus) Unwrap() error {
 	return e.err
 }
 
-type errorResponseBody struct {
-	XMLName xml.Name `xml:"error" json:"-"`
-	Err     string   `json:"err" xml:"err"`
-}
-
 func errorHandlerBody(_ int, err error) any {
-	return errorResponseBody{Err: err.Error()}
+	return map[string]string{"err": err.Error()}
 }
 
 func errorHandlerJson(statusCode int, err error) Response {
-	return NewJsonResponse(errorResponseBody{Err: err.Error()}, WithStatusCode(statusCode))
+	return NewJsonResponse(map[string]string{"err": err.Error()}, WithStatusCode(statusCode))
 }
 
 // WithErrorHandler replaces the package-level default error response handler.
 func WithErrorHandler(handler ErrorHandler) {
+	if handler == nil {
+		defaultErrorHandler = errorHandlerJson
+		hasCustomErrorHandler = false
+
+		return
+	}
+
 	defaultErrorHandler = handler
+	hasCustomErrorHandler = true
 }
 
 // GetErrorHandler returns the package-level default error response handler.
 func GetErrorHandler() ErrorHandler {
-	if defaultErrorHandler == nil {
-		return errorHandlerJson
-	}
-
 	return defaultErrorHandler
 }
 
 func errorHandlerOutput(statusCode int, err error) any {
-	if defaultErrorHandler == nil {
+	if !hasCustomErrorHandler {
 		return errorHandlerBody(statusCode, err)
 	}
 
@@ -140,4 +138,7 @@ func errorStatusCodeFromMappers(err error) (int, bool) {
 	return 0, false
 }
 
-var defaultErrorHandler ErrorHandler
+var (
+	defaultErrorHandler   ErrorHandler = errorHandlerJson
+	hasCustomErrorHandler bool
+)

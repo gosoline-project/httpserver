@@ -30,40 +30,6 @@ func TestNewApiHealthCheck(t *testing.T) {
 	assertRouteReturnsResponse(t, ginEngine, httpRecorder, "/health", http.StatusOK)
 }
 
-func TestHealthCheck_NegotiatesXMLForUnhealthyModules(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	ginEngine := gin.New()
-	logger := logMocks.NewLoggerMock(logMocks.WithMockAll, logMocks.WithTestingT(t))
-	healthChecker := func() kernel.HealthCheckResult {
-		return kernel.HealthCheckResult{
-			{
-				Name:    "database",
-				Healthy: false,
-			},
-		}
-	}
-
-	negotiator, err := httpserver.NewContentNegotiator(
-		httpserver.ContentTypeApplicationJson,
-		httpserver.JSONRepresentation(),
-		httpserver.XMLRepresentation(),
-	)
-	assert.NoError(t, err)
-	ginEngine.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
-	httpserver.NewHealthCheckWithInterfaces(logger, ginEngine, healthChecker, &httpserver.HealthCheckSettings{
-		Path: "/health",
-	})
-
-	recorder := httptest.NewRecorder()
-	request := httptest.NewRequest(http.MethodGet, "/health", http.NoBody)
-	request.Header.Set(httpserver.HeaderAccept, httpserver.ContentTypeApplicationXml)
-	ginEngine.ServeHTTP(recorder, request)
-
-	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
-	assert.Equal(t, httpserver.ContentTypeXml, recorder.Header().Get(httpserver.HeaderContentType))
-	assert.Equal(t, `<health><database>unhealthy</database></health>`, recorder.Body.String())
-}
-
 func TestHealthCheck_UnhealthyModuleDoesNotExposeError(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	ginEngine := gin.New()

@@ -55,7 +55,7 @@ func (s *errorMiddlewareTestSuite) TestStatusErrorReturnsStatusAndExposesError()
 	s.JSONEq(`{"err":"bad request detail"}`, recorder.Body.String())
 }
 
-func (s *errorMiddlewareTestSuite) TestErrorResponseUsesNegotiatedRepresentation() {
+func (s *errorMiddlewareTestSuite) TestErrorResponseFallsBackToJSONWhenXMLCannotEncodeMap() {
 	negotiator, err := httpserver.NewContentNegotiator(
 		httpserver.ContentTypeApplicationJson,
 		httpserver.JSONRepresentation(),
@@ -77,8 +77,9 @@ func (s *errorMiddlewareTestSuite) TestErrorResponseUsesNegotiatedRepresentation
 	router.ServeHTTP(recorder, request)
 
 	s.Equal(http.StatusBadRequest, recorder.Code)
-	s.Equal(httpserver.ContentTypeXml, recorder.Header().Get(httpserver.HeaderContentType))
-	s.Equal(`<error><err>bad request detail</err></error>`, recorder.Body.String())
+	s.Equal(httpserver.ContentTypeJson, recorder.Header().Get(httpserver.HeaderContentType))
+	s.Equal(httpserver.HeaderAccept, recorder.Header().Get(httpserver.HeaderVary))
+	s.JSONEq(`{"err":"bad request detail"}`, recorder.Body.String())
 }
 
 func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerResponsePreservesExplicitResponse() {

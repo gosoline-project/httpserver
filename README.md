@@ -154,8 +154,8 @@ router.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
 The middleware applies to typed results and to default responses produced by
 `ErrorMiddleware`. The built-in server installs a JSON-only negotiator by
 default, so an unsupported success `Accept` value returns `406 Not Acceptable`.
-The error response for that failure is negotiated as well and falls back to JSON
-if the requested representation cannot be selected or encoded.
+Error responses are negotiated in the same way and fall back to JSON if the
+requested representation cannot be selected or encoded.
 
 Return an explicit `Response` when the handler needs direct HTTP response
 control:
@@ -195,10 +195,12 @@ built-in validation and default mappings, so they should normally be registered
 once during application startup.
 
 The server's built-in recovery, overload rejection, and health-check responses
-use the server-level negotiator. A `Router.Use` override applies to routes
-registered on that router and their negotiated errors. Their explicit headers,
-such as `Retry-After`, remain unchanged. If a selected encoder fails, the error
-path preserves the mapped status and uses JSON as a fallback.
+use the server-level negotiator. These responses are ordinary values, so a
+representation such as XML may not be able to encode map-based responses. A
+`Router.Use` override applies to routes registered on that router and their
+negotiated errors. Explicit headers, such as `Retry-After`, remain unchanged. If
+a selected encoder fails, the error path preserves the mapped status and uses
+JSON as a fallback.
 
 ## Middleware
 

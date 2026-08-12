@@ -33,16 +33,16 @@ func ErrorMiddlewareWithSettings(settings ErrorsSettings) gin.HandlerFunc {
 
 func writeErrorResponse(c *gin.Context, statusCode int, err error) {
 	output := errorHandlerOutput(statusCode, err)
-	writeNegotiatedResponse(c, output, statusCode, errorResponseBody{Err: err.Error()})
+	writeNegotiatedResponse(c, output, statusCode)
 }
 
-func writeNegotiatedResponse(c *gin.Context, output any, statusCode int, fallback any) {
+func writeNegotiatedResponse(c *gin.Context, output any, statusCode int) {
 	response, responseErr := responseFromOutputWithStatus(c, output, statusCode)
 	if responseErr != nil {
 		// If the requested representation cannot encode the response, use JSON
 		// as a last resort so the client still receives the mapped status.
 		response = NewJsonResponse(
-			fallback,
+			output,
 			WithStatusCode(statusCode),
 			WithHeader(HeaderVary, HeaderAccept),
 		)
