@@ -1,6 +1,7 @@
 package httpserver_test
 
 import (
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"net/http"
@@ -20,6 +21,15 @@ type errorMiddlewareTestSuite struct {
 
 func TestErrorMiddlewareTestSuite(t *testing.T) {
 	suite.Run(t, new(errorMiddlewareTestSuite))
+}
+
+func restoreDefaultErrorHandler() {
+	httpserver.WithErrorHandler(func(_ int, err error) any {
+		return struct {
+			XMLName xml.Name `xml:"error" json:"-"`
+			Err     string   `json:"err" xml:"err"`
+		}{Err: err.Error()}
+	})
 }
 
 func (s *errorMiddlewareTestSuite) TestDefaultErrorReturnsGenericInternalServerError() {
@@ -82,7 +92,7 @@ func (s *errorMiddlewareTestSuite) TestErrorResponseUsesNegotiatedRepresentation
 }
 
 func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerBodyUsesNegotiation() {
-	defer httpserver.WithErrorHandler(nil)
+	defer restoreDefaultErrorHandler()
 
 	httpserver.WithErrorHandler(func(statusCode int, err error) any {
 		s.Equal(http.StatusBadRequest, statusCode)
@@ -102,7 +112,7 @@ func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerBodyUsesNegotiation() {
 }
 
 func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerResponsePreservesExplicitResponse() {
-	defer httpserver.WithErrorHandler(nil)
+	defer restoreDefaultErrorHandler()
 
 	httpserver.WithErrorHandler(func(statusCode int, err error) any {
 		s.Equal(http.StatusBadRequest, statusCode)

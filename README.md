@@ -136,8 +136,8 @@ func (h *Handler) Handle(ctx context.Context, input *Input) (Output, error) {
 }
 ```
 
-To support additional representations, construct a negotiator and install it on
-the router that owns the routes:
+To configure additional representations for all routes on a built-in server,
+pass a negotiator to `NewServer` or `NewServerWithSettings`:
 
 ```go
 negotiator, err := httpserver.NewContentNegotiator(
@@ -148,6 +148,18 @@ negotiator, err := httpserver.NewContentNegotiator(
 if err != nil {
     return err
 }
+
+factory := httpserver.NewServer(
+    "default",
+    Factory,
+    httpserver.WithResponseNegotiator(negotiator),
+)
+```
+
+For a route or router-group-specific override, install the middleware on that
+router instead:
+
+```go
 router.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
 ```
 
@@ -188,6 +200,9 @@ httpserver.WithErrorHandler(func(statusCode int, err error) any {
     }{Error: err.Error()}
 })
 ```
+
+`WithErrorHandler` assigns the provided handler directly. Do not pass `nil`; use a
+non-nil handler for every error response.
 
 The mapped `statusCode` is applied by the middleware. Returning an explicit
 `Response` remains an escape hatch for cases that need to control the status,

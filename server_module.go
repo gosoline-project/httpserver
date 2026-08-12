@@ -49,8 +49,38 @@ type HttpServer struct {
 	healthy        atomic.Bool
 }
 
+// ServerOption configures a server during construction.
+type ServerOption func(*serverOptions)
+
+type serverOptions struct {
+	responseNegotiator ResponseNegotiator
+}
+
+// WithResponseNegotiator configures the response negotiator used by the server.
+func WithResponseNegotiator(negotiator ResponseNegotiator) ServerOption {
+	if negotiator == nil {
+		panic("response negotiator is required")
+	}
+
+	return func(options *serverOptions) {
+		options.responseNegotiator = negotiator
+	}
+}
+
+func newServerOptions(options ...ServerOption) *serverOptions {
+	opts := &serverOptions{
+		responseNegotiator: NewDefaultResponseNegotiator(),
+	}
+
+	for _, option := range options {
+		option(opts)
+	}
+
+	return opts
+}
+
 // NewServer creates a module factory for a named HTTP server using config-based settings.
-func NewServer(name string, definer RouterFactory) kernel.ModuleFactory {
+func NewServer(name string, definer RouterFactory, options ...ServerOption) kernel.ModuleFactory {
 	return func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
 		settings := &Settings{}
 		if err := config.UnmarshalKey(HttpserverSettingsKey(name), settings); err != nil {
@@ -58,13 +88,14 @@ func NewServer(name string, definer RouterFactory) kernel.ModuleFactory {
 		}
 		settings.Name = name
 
-		return NewServerWithSettings(ctx, name, definer, settings)(ctx, config, logger)
+		return NewServerWithSettings(ctx, name, definer, settings, options...)(ctx, config, logger)
 	}
 }
 
 // NewServerWithSettings creates a module factory for a named HTTP server using explicit settings.
-func NewServerWithSettings(_ context.Context, name string, definer RouterFactory, settings *Settings) kernel.ModuleFactory {
+func NewServerWithSettings(_ context.Context, name string, definer RouterFactory, settings *Settings, options ...ServerOption) kernel.ModuleFactory {
 	settings.Name = name
+	serverOpts := newServerOptions(options...)
 
 	return func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
 		channel := fmt.Sprintf("httpserver-%s", name)
@@ -104,7 +135,7 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 		router := gin.New()
 		router.ContextWithFallback = true
 		router.UseRawPath = settings.Router.UseRawPath
-		router.Use(ResponseNegotiationMiddleware(NewDefaultResponseNegotiator()))
+		router.Use(ResponseNegotiationMiddleware(serverOpts.responseNegotiator))
 		router.Use(samplingMiddleware)
 		router.Use(metricMiddleware)
 		router.Use(LoggingMiddleware(logger, settings.Logging))

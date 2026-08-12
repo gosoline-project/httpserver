@@ -75,6 +75,8 @@ func (e errorWithStatus) Unwrap() error {
 	return e.err
 }
 
+// errorResponseBody keeps the default JSON and XML error representations
+// stable when ordinary error bodies are negotiated.
 type errorResponseBody struct {
 	XMLName xml.Name `xml:"error" json:"-"`
 	Err     string   `json:"err" xml:"err"`
@@ -82,14 +84,6 @@ type errorResponseBody struct {
 
 // WithErrorHandler replaces the package-level error body handler.
 func WithErrorHandler(handler ErrorHandler) {
-	if handler == nil {
-		defaultErrorHandler = func(_ int, err error) any {
-			return errorResponseBody{Err: err.Error()}
-		}
-
-		return
-	}
-
 	defaultErrorHandler = handler
 }
 
