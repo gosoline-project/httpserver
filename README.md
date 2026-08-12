@@ -190,9 +190,9 @@ httpserver.WithErrorHandler(func(statusCode int, err error) any {
 ```
 
 The mapped `statusCode` is applied by the middleware. Returning an explicit
-`Response` remains an escape hatch for legacy handlers or cases that need to
-control the status, headers, content type, or body directly; such responses
-bypass content negotiation.
+`Response` remains an escape hatch for cases that need to control the status,
+headers, content type, or body directly; such responses bypass content
+negotiation.
 
 `RegisterErrorMapper` adds a process-wide status mapper. Mappers run in
 registration order after an explicit `NewErrorWithStatus` and before the

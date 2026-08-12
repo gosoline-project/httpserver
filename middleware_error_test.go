@@ -104,7 +104,7 @@ func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerBodyUsesNegotiation() {
 func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerResponsePreservesExplicitResponse() {
 	defer httpserver.WithErrorHandler(nil)
 
-	httpserver.WithErrorHandler(func(statusCode int, err error) httpserver.Response {
+	httpserver.WithErrorHandler(func(statusCode int, err error) any {
 		s.Equal(http.StatusBadRequest, statusCode)
 		s.Equal("bad request detail", err.Error())
 

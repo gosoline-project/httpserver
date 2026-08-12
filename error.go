@@ -80,28 +80,17 @@ type errorResponseBody struct {
 	Err     string   `json:"err" xml:"err"`
 }
 
-func errorHandlerBody(_ int, err error) any {
-	return errorResponseBody{Err: err.Error()}
-}
-
-// WithErrorHandler replaces the package-level error body handler. The handler
-// should normally be an ErrorHandler. Legacy handlers returning Response are
-// accepted and remain an explicit response escape hatch.
-func WithErrorHandler(handler any) {
-	switch handler := handler.(type) {
-	case nil:
-		defaultErrorHandler = ErrorHandler(errorHandlerBody)
-	case ErrorHandler:
-		defaultErrorHandler = handler
-	case func(int, error) any:
-		defaultErrorHandler = ErrorHandler(handler)
-	case func(int, error) Response:
-		defaultErrorHandler = func(statusCode int, err error) any {
-			return handler(statusCode, err)
+// WithErrorHandler replaces the package-level error body handler.
+func WithErrorHandler(handler ErrorHandler) {
+	if handler == nil {
+		defaultErrorHandler = func(_ int, err error) any {
+			return errorResponseBody{Err: err.Error()}
 		}
-	default:
-		panic("error handler must have signature func(int, error) any or func(int, error) Response")
+
+		return
 	}
+
+	defaultErrorHandler = handler
 }
 
 // GetErrorHandler returns a compatibility handler that produces an explicit
@@ -157,4 +146,6 @@ func errorStatusCodeFromMappers(err error) (int, bool) {
 	return 0, false
 }
 
-var defaultErrorHandler ErrorHandler = ErrorHandler(errorHandlerBody)
+var defaultErrorHandler ErrorHandler = func(_ int, err error) any {
+	return errorResponseBody{Err: err.Error()}
+}
