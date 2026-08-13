@@ -72,8 +72,7 @@ func responseFromOutputWithStatus[O any](ginCtx *gin.Context, output O, statusCo
 	var response Response
 	var err error
 
-	response, err = responseFromOutput(ginCtx, output)
-	if err != nil {
+	if response, err = responseFromOutput(ginCtx, output); err != nil {
 		return nil, err
 	}
 

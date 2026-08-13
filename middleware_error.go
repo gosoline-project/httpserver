@@ -37,8 +37,10 @@ func writeErrorResponse(c *gin.Context, statusCode int, err error) {
 }
 
 func writeNegotiatedResponse(c *gin.Context, output any, statusCode int) {
-	response, responseErr := responseFromOutputWithStatus(c, output, statusCode)
-	if responseErr != nil {
+	var response Response
+	var err error
+
+	if response, err = responseFromOutputWithStatus(c, output, statusCode); err != nil {
 		// If the requested representation cannot encode the response, use JSON
 		// as a last resort so the client still receives the mapped status.
 		response = NewJsonResponse(
@@ -48,7 +50,7 @@ func writeNegotiatedResponse(c *gin.Context, output any, statusCode int) {
 		)
 	}
 
-	if err := BindHandleResponse(response, c); err != nil {
+	if err = BindHandleResponse(response, c); err != nil {
 		c.Errors = append(c.Errors, &gin.Error{Err: fmt.Errorf("error response error: %w", err), Type: gin.ErrorTypePrivate})
 	}
 }

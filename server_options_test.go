@@ -24,16 +24,18 @@ func (*testResponseNegotiator) Render(*http.Request, any) (Response, error) {
 }
 
 func TestNewServerOptionsUsesDefaultResponseNegotiator(t *testing.T) {
-	options := newServerOptions()
+	options, err := newServerOptions()
 
+	require.NoError(t, err)
 	assert.IsType(t, &ContentNegotiator{}, options.responseNegotiator)
 }
 
 func TestNewServerOptionsUsesConfiguredResponseNegotiator(t *testing.T) {
 	negotiator := &testResponseNegotiator{}
 
-	options := newServerOptions(WithResponseNegotiator(negotiator))
+	options, err := newServerOptions(WithResponseNegotiator(negotiator))
 
+	require.NoError(t, err)
 	assert.Same(t, negotiator, options.responseNegotiator)
 }
 
@@ -47,10 +49,28 @@ func TestNewServerWithSettingsAcceptsResponseNegotiatorOption(t *testing.T) {
 	assert.Equal(t, "test", settings.Name)
 }
 
-func TestWithResponseNegotiatorPanicsForNil(t *testing.T) {
-	assert.Panics(t, func() {
-		WithResponseNegotiator(nil)
+func TestNewServerWithSettingsReturnsOptionError(t *testing.T) {
+	expectedErr := errors.New("option failed")
+	factory := NewServerWithSettings(t.Context(), "test", nil, &Settings{}, func(*serverOptions) error {
+		return expectedErr
 	})
+
+	_, err := factory(t.Context(), cfg.New(map[string]any{}), log.NewLogger())
+
+	require.ErrorIs(t, err, expectedErr)
+	require.ErrorContains(t, err, "could not configure server options")
+}
+
+func TestWithResponseNegotiatorReturnsErrorForNil(t *testing.T) {
+	_, err := newServerOptions(WithResponseNegotiator(nil))
+
+	require.EqualError(t, err, "could not apply server option: response negotiator is required")
+}
+
+func TestNewServerOptionsReturnsErrorForNilOption(t *testing.T) {
+	_, err := newServerOptions(nil)
+
+	require.EqualError(t, err, "server option is required")
 }
 
 func TestWithErrorHandlerAssignsHandlerDirectly(t *testing.T) {

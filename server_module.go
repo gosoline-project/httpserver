@@ -49,36 +49,6 @@ type HttpServer struct {
 	healthy        atomic.Bool
 }
 
-// ServerOption configures a server during construction.
-type ServerOption func(*serverOptions)
-
-type serverOptions struct {
-	responseNegotiator ResponseNegotiator
-}
-
-// WithResponseNegotiator configures the response negotiator used by the server.
-func WithResponseNegotiator(negotiator ResponseNegotiator) ServerOption {
-	if negotiator == nil {
-		panic("response negotiator is required")
-	}
-
-	return func(options *serverOptions) {
-		options.responseNegotiator = negotiator
-	}
-}
-
-func newServerOptions(options ...ServerOption) *serverOptions {
-	opts := &serverOptions{
-		responseNegotiator: NewDefaultResponseNegotiator(),
-	}
-
-	for _, option := range options {
-		option(opts)
-	}
-
-	return opts
-}
-
 // NewServer creates a module factory for a named HTTP server using config-based settings.
 func NewServer(name string, definer RouterFactory, options ...ServerOption) kernel.ModuleFactory {
 	return func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
@@ -95,9 +65,13 @@ func NewServer(name string, definer RouterFactory, options ...ServerOption) kern
 // NewServerWithSettings creates a module factory for a named HTTP server using explicit settings.
 func NewServerWithSettings(_ context.Context, name string, definer RouterFactory, settings *Settings, options ...ServerOption) kernel.ModuleFactory {
 	settings.Name = name
-	serverOpts := newServerOptions(options...)
 
 	return func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
+		serverOpts, optionsErr := newServerOptions(options...)
+		if optionsErr != nil {
+			return nil, fmt.Errorf("could not configure server options: %w", optionsErr)
+		}
+
 		channel := fmt.Sprintf("httpserver-%s", name)
 		logger = logger.WithChannel(channel)
 
