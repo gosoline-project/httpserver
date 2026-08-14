@@ -156,6 +156,19 @@ factory := httpserver.NewServer(
 )
 ```
 
+When using the application helper, pass server options separately from
+application options. The remaining arguments, when needed, are
+`application.Option` values:
+
+```go
+httpserver.RunServerWithOptions(
+    Factory,
+    []httpserver.ServerOption{
+        httpserver.WithResponseNegotiator(negotiator),
+    },
+)
+```
+
 For a route or router-group-specific override, install the middleware on that
 router instead:
 
@@ -209,10 +222,11 @@ The mapped `statusCode` is applied by the middleware. Returning an explicit
 headers, content type, or body directly; such responses bypass content
 negotiation.
 
-`RegisterErrorMapper` adds a process-wide status mapper. Mappers run in
-registration order after an explicit `NewErrorWithStatus` and before the
-built-in validation and default mappings, so they should normally be registered
-once during application startup.
+`WithErrorMapper` adds a status mapper to one server. Pass the option to
+`NewServer`, `NewServerWithSettings`, or `RunServerWithOptions`. Mappers run in
+option order after an explicit `NewErrorWithStatus` and before the built-in
+validation and default mappings. The former process-wide `RegisterErrorMapper`
+API is not available; migrate registrations to server options.
 
 The server's built-in recovery and overload responses use dedicated response
 types and the server-level negotiator. Health-check responses use a map because

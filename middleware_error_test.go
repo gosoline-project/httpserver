@@ -184,18 +184,18 @@ func (s *errorMiddlewareTestSuite) TestErrorResponseFallsBackToJSONWhenEncoderFa
 	s.JSONEq(`{"err":"bad request detail"}`, recorder.Body.String())
 }
 
-func (s *errorMiddlewareTestSuite) TestRegisteredErrorMapperReturnsForbidden() {
+func (s *errorMiddlewareTestSuite) TestConfiguredErrorMapperReturnsForbidden() {
 	deniedError := errors.New("permission denied")
-	httpserver.RegisterErrorMapper(func(err error) (int, bool) {
+	mapper := func(err error) (int, bool) {
 		if errors.Is(err, deniedError) {
 			return http.StatusForbidden, true
 		}
 
 		return 0, false
-	})
+	}
 
 	err := fmt.Errorf("handler failed: %w", deniedError)
-	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddleware())
+	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddlewareWithMappers(httpserver.ErrorsSettings{}, mapper))
 
 	s.Equal(http.StatusForbidden, recorder.Code)
 	s.JSONEq(`{"err":"handler failed: permission denied"}`, recorder.Body.String())

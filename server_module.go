@@ -115,7 +115,7 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 		router.Use(LoggingMiddleware(logger, settings.Logging))
 		router.Use(compressionMiddlewares...)
 		router.Use(MaxBodySizeMiddleware(settings.MaxBodyBytes))
-		router.Use(ErrorMiddlewareWithSettings(settings.Errors))
+		router.Use(ErrorMiddlewareWithMappers(settings.Errors, serverOpts.errorMappers...))
 		router.Use(RecoveryWithSentry(logger))
 		router.Use(location.Default())
 		router.Use(connectionLifeCycleInterceptor)

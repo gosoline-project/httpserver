@@ -8,11 +8,19 @@ import (
 
 // ErrorMiddleware creates error middleware with default settings.
 func ErrorMiddleware() gin.HandlerFunc {
-	return ErrorMiddlewareWithSettings(ErrorsSettings{})
+	return ErrorMiddlewareWithMappers(ErrorsSettings{})
 }
 
 // ErrorMiddlewareWithSettings converts Gin context errors into HTTP error responses.
 func ErrorMiddlewareWithSettings(settings ErrorsSettings) gin.HandlerFunc {
+	return ErrorMiddlewareWithMappers(settings)
+}
+
+// ErrorMiddlewareWithMappers converts Gin context errors into HTTP error responses
+// with the provided application error mappers.
+func ErrorMiddlewareWithMappers(settings ErrorsSettings, mappers ...ErrorMapper) gin.HandlerFunc {
+	mappers = append([]ErrorMapper(nil), mappers...)
+
 	return func(c *gin.Context) {
 		c.Next()
 
@@ -21,7 +29,7 @@ func ErrorMiddlewareWithSettings(settings ErrorsSettings) gin.HandlerFunc {
 		}
 
 		err := c.Errors.Last().Err
-		statusCode := GetErrorStatusCode(err)
+		statusCode := GetErrorStatusCodeWithMappers(err, mappers...)
 
 		if statusCode >= 500 && (settings.Privacy == ErrorPrivacyPrivate || settings.Privacy == "") {
 			err = fmt.Errorf("internal server error")
