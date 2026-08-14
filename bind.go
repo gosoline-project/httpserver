@@ -58,31 +58,6 @@ func BindR[I, O any](handler func(ctx context.Context, req *http.Request, input 
 	}
 }
 
-// responseFromOutput preserves explicit Response values as an escape hatch and
-// delegates typed application results to the request's response negotiator.
-func responseFromOutput[O any](ginCtx *gin.Context, output O) (Response, error) {
-	if response, ok := any(output).(Response); ok {
-		return response, nil
-	}
-
-	return responseNegotiatorFromContext(ginCtx).Render(ginCtx.Request, output)
-}
-
-func responseFromOutputWithStatus[O any](ginCtx *gin.Context, output O, statusCode int) (Response, error) {
-	var response Response
-	var err error
-
-	if response, err = responseFromOutput(ginCtx, output); err != nil {
-		return nil, err
-	}
-
-	if _, ok := any(output).(Response); ok {
-		return response, nil
-	}
-
-	return withStatusCode(response, statusCode), nil
-}
-
 // BindN adapts a typed handler that does not need request input binding.
 func BindN[O any](handler func(ctx context.Context) (O, error)) gin.HandlerFunc {
 	return BindNR[O](func(ctx context.Context, _ *http.Request) (O, error) {
@@ -288,101 +263,6 @@ func getTagBinders(tags []string) (binders []binding.Binding) {
 	return
 }
 
-// BindHandleResponse writes a Response to the Gin context, including status,
-// headers, and body handling for methods or status codes that must not include a body.
-func BindHandleResponse(response Response, ginCtx *gin.Context) error {
-	var err error
-	var statusCode int
-	var header http.Header
-	var body []byte
-
-	statusCode = response.StatusCode()
-	header = response.Header()
-	bodyless := hasBodylessResponse(ginCtx.Request, statusCode)
-
-	if !bodyless {
-		if body, err = response.Body(); err != nil {
-			return fmt.Errorf("body read error: %w", err)
-		}
-	}
-
-	for key, values := range header {
-		for _, value := range values {
-			if strings.EqualFold(key, HeaderVary) {
-				addVaryHeader(ginCtx.Writer.Header(), value)
-
-				continue
-			}
-
-			ginCtx.Header(key, value)
-		}
-	}
-
-	ginCtx.Status(statusCode)
-	ginCtx.Writer.WriteHeaderNow()
-
-	if bodyless {
-		return nil
-	}
-
-	if _, err = ginCtx.Writer.Write(body); err != nil {
-		return fmt.Errorf("body write error: %w", err)
-	}
-
-	return nil
-}
-
-func addVaryHeader(header http.Header, value string) {
-	var values []string
-	seen := make(map[string]struct{})
-
-	for _, existing := range header.Values(HeaderVary) {
-		for _, token := range strings.Split(existing, ",") {
-			token = strings.TrimSpace(token)
-			if token == "" {
-				continue
-			}
-			if token == "*" {
-				header.Set(HeaderVary, "*")
-
-				return
-			}
-
-			key := strings.ToLower(token)
-			if _, ok := seen[key]; ok {
-				continue
-			}
-
-			seen[key] = struct{}{}
-			values = append(values, token)
-		}
-	}
-
-	for _, token := range strings.Split(value, ",") {
-		token = strings.TrimSpace(token)
-		if token == "" {
-			continue
-		}
-		if token == "*" {
-			header.Set(HeaderVary, "*")
-
-			return
-		}
-
-		key := strings.ToLower(token)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-
-		seen[key] = struct{}{}
-		values = append(values, token)
-	}
-
-	if len(values) > 0 {
-		header.Set(HeaderVary, strings.Join(values, ", "))
-	}
-}
-
 func reportGinError(ginCtx *gin.Context, err error) {
 	reportGinErrorWithType(ginCtx, err, gin.ErrorTypePrivate)
 }
@@ -390,14 +270,6 @@ func reportGinError(ginCtx *gin.Context, err error) {
 func reportGinErrorWithType(ginCtx *gin.Context, err error, errType gin.ErrorType) {
 	ginErr := ginCtx.Error(err)
 	ginErr.Type = errType
-}
-
-func hasBodylessResponse(request *http.Request, statusCode int) bool {
-	if request != nil && request.Method == http.MethodHead {
-		return true
-	}
-
-	return statusCode >= 100 && statusCode < 200 || statusCode == http.StatusNoContent || statusCode == http.StatusNotModified
 }
 
 // NoBodyBinding is a no-op binder for handlers that must not bind the request body.

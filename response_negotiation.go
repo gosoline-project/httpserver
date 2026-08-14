@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/justtrackio/gosoline/pkg/encoding/json"
+	"github.com/justtrackio/gosoline/pkg/funk"
 )
 
 // ResponseRepresentation describes one media type that the HTTP server can
@@ -54,7 +55,7 @@ func NewContentNegotiator(defaultMediaType string, representations ...ResponseRe
 	}
 
 	configured := make([]configuredRepresentation, 0, len(representations))
-	seen := make(map[string]struct{}, len(representations))
+	seen := funk.NewSet[string]()
 	for _, representation := range representations {
 		mediaType, mediaTypeErr := parseConfiguredMediaType(representation.MediaType)
 		if mediaTypeErr != nil {
@@ -63,11 +64,11 @@ func NewContentNegotiator(defaultMediaType string, representations ...ResponseRe
 		if representation.Encode == nil {
 			return nil, fmt.Errorf("response representation %q has no encoder", representation.MediaType)
 		}
-		if _, ok := seen[mediaType]; ok {
+		if seen.Contains(mediaType) {
 			return nil, fmt.Errorf("response media type %q is configured more than once", mediaType)
 		}
 
-		seen[mediaType] = struct{}{}
+		seen.Add(mediaType)
 		configured = append(configured, configuredRepresentation{
 			ResponseRepresentation: ResponseRepresentation{
 				MediaType: mediaType,
@@ -76,7 +77,7 @@ func NewContentNegotiator(defaultMediaType string, representations ...ResponseRe
 			mediaType: mediaType,
 		})
 	}
-	if _, ok := seen[defaultMediaType]; !ok {
+	if !seen.Contains(defaultMediaType) {
 		return nil, fmt.Errorf("default response media type %q is not configured", defaultMediaType)
 	}
 
