@@ -136,7 +136,16 @@ func responseFromOutput[O any](ginCtx *gin.Context, output O) (Response, error) 
 		return response, nil
 	}
 
-	return responseNegotiatorFromContext(ginCtx).Render(ginCtx.Request, output)
+	response, err := responseNegotiatorFromContext(ginCtx).Render(ginCtx.Request, output)
+	if err != nil {
+		return nil, err
+	}
+
+	if statusCode, ok := any(output).(StatusCode); ok {
+		return responseWithStatusCode(response, statusCode.StatusCode()), nil
+	}
+
+	return response, nil
 }
 
 func responseFromOutputWithStatus[O any](ginCtx *gin.Context, output O, statusCode int) (Response, error) {
