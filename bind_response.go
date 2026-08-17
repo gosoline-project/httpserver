@@ -132,12 +132,14 @@ func responseWithStatusCode(response Response, statusCode int) Response {
 // responseFromOutput preserves explicit Response values as an escape hatch and
 // delegates typed application results to the request's response negotiator.
 func responseFromOutput[O any](ginCtx *gin.Context, output O) (Response, error) {
+	var err error
+	var response Response
+
 	if response, ok := any(output).(Response); ok {
 		return response, nil
 	}
 
-	response, err := responseNegotiatorFromContext(ginCtx).Render(ginCtx.Request, output)
-	if err != nil {
+	if response, err = responseNegotiatorFromContext(ginCtx).Render(ginCtx.Request, output); err != nil {
 		return nil, err
 	}
 

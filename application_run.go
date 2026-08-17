@@ -20,20 +20,6 @@ func RunDefaultServer(routerFactory RouterFactory, options ...application.Option
 	)
 }
 
-// RunServerWithOptions starts an application with one HTTP server named "default"
-// and configures it with serverOptions in addition to application options.
-func RunServerWithOptions(routerFactory RouterFactory, serverOptions []ServerOption, options ...application.Option) {
-	RunServers(
-		map[string]ServerDefinition{
-			"default": {
-				RouterFactory: routerFactory,
-				Options:       serverOptions,
-			},
-		},
-		options...,
-	)
-}
-
 // RunServers starts an application with one HTTP server module per provided server definition.
 func RunServers(servers map[string]ServerDefinition, options ...application.Option) {
 	options = append(options, application.WithExecBackoffSettings(&exec.BackoffSettings{
