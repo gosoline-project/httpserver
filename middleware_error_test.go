@@ -15,6 +15,30 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+type errorWithHeaders struct {
+	statusCode int
+}
+
+func (errorWithHeaders) Error() string {
+	return "error with headers"
+}
+
+func (err errorWithHeaders) StatusCode() int {
+	if err.statusCode != 0 {
+		return err.statusCode
+	}
+
+	return http.StatusTooManyRequests
+}
+
+func (errorWithHeaders) Header() http.Header {
+	return http.Header{
+		"X-Error":                   {"custom"},
+		"X-Multi-Value":             {"first", "second"},
+		httpserver.HeaderRetryAfter: {"30"},
+	}
+}
+
 type errorMiddlewareTestSuite struct {
 	suite.Suite
 }
@@ -63,6 +87,26 @@ func (s *errorMiddlewareTestSuite) TestStatusErrorReturnsStatusAndExposesError()
 
 	s.Equal(http.StatusBadRequest, recorder.Code)
 	s.JSONEq(`{"err":"bad request detail"}`, recorder.Body.String())
+}
+
+func (s *errorMiddlewareTestSuite) TestErrorWithStatusAndHeaders() {
+	err := fmt.Errorf("wrapped: %w", errorWithHeaders{})
+	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddleware())
+
+	s.Equal(http.StatusTooManyRequests, recorder.Code)
+	s.Equal("custom", recorder.Header().Get("X-Error"))
+	s.Equal([]string{"first", "second"}, recorder.Header().Values("X-Multi-Value"))
+	s.Equal("30", recorder.Header().Get(httpserver.HeaderRetryAfter))
+	s.JSONEq(`{"err":"wrapped: error with headers"}`, recorder.Body.String())
+}
+
+func (s *errorMiddlewareTestSuite) TestPrivateErrorDoesNotExposeErrorHeaders() {
+	err := errorWithHeaders{statusCode: http.StatusInternalServerError}
+	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddleware())
+
+	s.Equal(http.StatusInternalServerError, recorder.Code)
+	s.Empty(recorder.Header().Get("X-Error"))
+	s.JSONEq(`{"err":"internal server error"}`, recorder.Body.String())
 }
 
 func (s *errorMiddlewareTestSuite) TestErrorResponseUsesNegotiatedRepresentation() {

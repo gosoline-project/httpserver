@@ -11,6 +11,11 @@ type StatusCode interface {
 	StatusCode() int
 }
 
+// HeaderProvider is implemented by handler outputs and errors that provide HTTP headers.
+type HeaderProvider interface {
+	Header() http.Header
+}
+
 // Response is the typed response returned by bound HTTP handlers.
 type Response interface {
 	ContentType() string

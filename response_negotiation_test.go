@@ -21,6 +21,23 @@ type negotiatedOutput struct {
 	Name    string   `json:"name" xml:"name"`
 }
 
+type negotiatedOutputWithMetadata struct {
+	Name string `json:"name"`
+}
+
+func (negotiatedOutputWithMetadata) StatusCode() int {
+	return http.StatusAccepted
+}
+
+func (negotiatedOutputWithMetadata) Header() http.Header {
+	return http.Header{
+		"X-Output":                   {"ordinary"},
+		"X-Multi-Value":              {"first", "second"},
+		httpserver.HeaderContentType: {httpserver.ContentTypeTextPlain},
+		httpserver.HeaderVary:        {"X-Output"},
+	}
+}
+
 type negotiatedHandler struct{}
 
 func (negotiatedHandler) Handle(context.Context, *struct{}) (negotiatedOutput, error) {
@@ -77,6 +94,28 @@ func TestBindRendersTypedOutputAsJSON(t *testing.T) {
 	assert.Equal(t, http.StatusOK, recorder.Code)
 	assert.Equal(t, httpserver.ContentTypeJson, recorder.Header().Get(httpserver.HeaderContentType))
 	assert.Equal(t, httpserver.HeaderAccept, recorder.Header().Get(httpserver.HeaderVary))
+	assert.JSONEq(t, `{"name":"alice"}`, recorder.Body.String())
+}
+
+func TestTypedOutputUsesStatusAndHeaders(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(func(c *gin.Context) {
+		c.Header(httpserver.HeaderVary, httpserver.HeaderAcceptEncoding)
+		c.Next()
+	})
+	router.Use(httpserver.ErrorMiddleware())
+	router.GET("/result", httpserver.BindN(func(context.Context) (negotiatedOutputWithMetadata, error) {
+		return negotiatedOutputWithMetadata{Name: "alice"}, nil
+	}))
+
+	recorder := serveRequest(router, http.MethodGet, "/result", "")
+
+	assert.Equal(t, http.StatusAccepted, recorder.Code)
+	assert.Equal(t, "ordinary", recorder.Header().Get("X-Output"))
+	assert.Equal(t, []string{"first", "second"}, recorder.Header().Values("X-Multi-Value"))
+	assert.Equal(t, httpserver.ContentTypeJson, recorder.Header().Get(httpserver.HeaderContentType))
+	assert.Equal(t, "Accept-Encoding, Accept, X-Output", recorder.Header().Get(httpserver.HeaderVary))
 	assert.JSONEq(t, `{"name":"alice"}`, recorder.Body.String())
 }
 

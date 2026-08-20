@@ -28,14 +28,15 @@ func BindHandleResponse(response Response, ginCtx *gin.Context) error {
 	}
 
 	for key, values := range header {
+		if strings.EqualFold(key, HeaderVary) {
+			addVaryHeader(ginCtx.Writer.Header(), strings.Join(values, ","))
+
+			continue
+		}
+
+		ginCtx.Writer.Header().Del(key)
 		for _, value := range values {
-			if strings.EqualFold(key, HeaderVary) {
-				addVaryHeader(ginCtx.Writer.Header(), value)
-
-				continue
-			}
-
-			ginCtx.Header(key, value)
+			ginCtx.Writer.Header().Add(key, value)
 		}
 	}
 
@@ -129,6 +130,64 @@ func responseWithStatusCode(response Response, statusCode int) Response {
 	}
 }
 
+type responseWithHeaders struct {
+	Response
+	header http.Header
+}
+
+func (r responseWithHeaders) Header() http.Header {
+	return r.header
+}
+
+func (r responseWithHeaders) ContentType() string {
+	return r.header.Get(HeaderContentType)
+}
+
+func withHeaders(response Response, headers http.Header) Response {
+	if len(headers) == 0 {
+		return response
+	}
+
+	merged := cloneHeader(response.Header())
+	for key, values := range headers {
+		if strings.EqualFold(key, HeaderVary) {
+			addVaryHeader(merged, strings.Join(values, ","))
+
+			continue
+		}
+		if strings.EqualFold(key, HeaderContentType) {
+			continue
+		}
+
+		deleteHeader(merged, key)
+		for _, value := range values {
+			merged.Add(key, value)
+		}
+	}
+
+	return responseWithHeaders{
+		Response: response,
+		header:   merged,
+	}
+}
+
+func cloneHeader(header http.Header) http.Header {
+	cloned := make(http.Header, len(header))
+	for key, values := range header {
+		cloned[key] = append([]string(nil), values...)
+	}
+
+	return cloned
+}
+
+func deleteHeader(header http.Header, key string) {
+	for existingKey := range header {
+		if strings.EqualFold(existingKey, key) {
+			delete(header, existingKey)
+		}
+	}
+}
+
 // responseFromOutput preserves explicit Response values as an escape hatch and
 // delegates typed application results to the request's response negotiator.
 func responseFromOutput[O any](ginCtx *gin.Context, output O) (Response, error) {
@@ -143,6 +202,10 @@ func responseFromOutput[O any](ginCtx *gin.Context, output O) (Response, error) 
 		return nil, err
 	}
 
+	if headerProvider, ok := any(output).(HeaderProvider); ok {
+		response = withHeaders(response, headerProvider.Header())
+	}
+
 	if statusCode, ok := any(output).(StatusCode); ok {
 		return responseWithStatusCode(response, statusCode.StatusCode()), nil
 	}
@@ -151,6 +214,10 @@ func responseFromOutput[O any](ginCtx *gin.Context, output O) (Response, error) 
 }
 
 func responseFromOutputWithStatus[O any](ginCtx *gin.Context, output O, statusCode int) (Response, error) {
+	return responseFromOutputWithStatusAndHeaders(ginCtx, output, statusCode, nil)
+}
+
+func responseFromOutputWithStatusAndHeaders[O any](ginCtx *gin.Context, output O, statusCode int, errorHeaders http.Header) (Response, error) {
 	var err error
 	var response Response
 
@@ -162,5 +229,5 @@ func responseFromOutputWithStatus[O any](ginCtx *gin.Context, output O, statusCo
 		return response, nil
 	}
 
-	return responseWithStatusCode(response, statusCode), nil
+	return responseWithStatusCode(withHeaders(response, errorHeaders), statusCode), nil
 }

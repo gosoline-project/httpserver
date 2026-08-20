@@ -24,6 +24,15 @@ type ErrorHandler func(statusCode int, err error) any
 // result indicates whether the mapper applies to the error.
 type ErrorMapper func(err error) (statusCode int, handled bool)
 
+func headersFromError(err error) http.Header {
+	var headerProvider HeaderProvider
+	if errors.As(err, &headerProvider) {
+		return headerProvider.Header()
+	}
+
+	return nil
+}
+
 // ErrorWithStatus is an error that carries an explicit HTTP status code.
 type ErrorWithStatus interface {
 	error

@@ -136,6 +136,30 @@ func (h *Handler) Handle(ctx context.Context, input *Input) (Output, error) {
 }
 ```
 
+Ordinary outputs may also implement `httpserver.StatusCode` and
+`httpserver.HeaderProvider`. The status and headers are applied to the
+negotiated response while the body remains encoded by the selected
+representation:
+
+```go
+type Output struct {
+    Message string `json:"message"`
+}
+
+func (Output) StatusCode() int { return http.StatusAccepted }
+
+func (Output) Header() http.Header {
+    return http.Header{"X-Source": {"handler"}}
+}
+```
+
+The negotiated `Content-Type` remains authoritative for ordinary outputs so
+headers cannot disagree with the encoded representation. Other supplied
+headers are merged into the response, and `Vary` values are combined.
+
+`Response` values remain the full response escape hatch. They control status,
+headers, content type, and body directly.
+
 To configure additional representations for all routes on a built-in server,
 pass a negotiator to `NewServer` or `NewServerWithSettings`:
 
@@ -217,10 +241,13 @@ httpserver.WithErrorHandler(func(statusCode int, err error) any {
 `WithErrorHandler` assigns the provided handler directly. Do not pass `nil`; use a
 non-nil handler for every error response.
 
-The mapped `statusCode` is applied by the middleware. Returning an explicit
-`Response` remains an escape hatch for cases that need to control the status,
-headers, content type, or body directly; such responses bypass content
-negotiation.
+The mapped `statusCode` is applied by the middleware. Errors may implement
+`StatusCode()` and `Header()`, which lets them provide both the error status and
+HTTP headers. Error headers are applied to ordinary negotiated error bodies.
+Private 5xx errors use the generic error body and do not propagate headers from
+the original error. Returning an explicit `Response` remains an escape hatch
+for cases that need to control the status, headers, content type, or body
+directly; such responses bypass content negotiation.
 
 `WithErrorMapper` adds a status mapper to one server. Pass the option to
 `NewServer`, `NewServerWithSettings`, or `RunServerWithOptions`. Mappers run in
