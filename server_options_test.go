@@ -73,28 +73,28 @@ func TestNewServerOptionsReturnsErrorForNilOption(t *testing.T) {
 	require.EqualError(t, err, "server option is required")
 }
 
-func TestWithErrorHandlerAssignsHandlerDirectly(t *testing.T) {
-	original := defaultErrorHandler
-	t.Cleanup(func() {
-		defaultErrorHandler = original
-	})
+func TestNewServerOptionsUsesDefaultErrorHandler(t *testing.T) {
+	options, err := newServerOptions()
 
-	WithErrorHandler(func(_ int, _ error) any {
-		return "custom"
-	})
-
-	assert.Equal(t, "custom", defaultErrorHandler(0, errors.New("ignored")))
+	require.NoError(t, err)
+	assert.Equal(t, errorResponseBody{Err: "ignored"}, options.errorHandler(0, errors.New("ignored")))
 }
 
-func TestWithErrorHandlerAssignsNilDirectly(t *testing.T) {
-	original := defaultErrorHandler
-	t.Cleanup(func() {
-		defaultErrorHandler = original
-	})
+func TestNewServerOptionsUsesConfiguredErrorHandler(t *testing.T) {
+	handler := func(_ int, _ error) any {
+		return "custom"
+	}
 
-	WithErrorHandler(nil)
+	options, err := newServerOptions(WithErrorHandler(handler))
 
-	assert.Nil(t, defaultErrorHandler)
+	require.NoError(t, err)
+	assert.Equal(t, "custom", options.errorHandler(0, errors.New("ignored")))
+}
+
+func TestWithErrorHandlerReturnsErrorForNil(t *testing.T) {
+	_, err := newServerOptions(WithErrorHandler(nil))
+
+	require.EqualError(t, err, "could not apply server option: error handler is required")
 }
 
 type serverOptionResponse struct {
@@ -177,6 +177,9 @@ func serverOptionRouterFactory(_ context.Context, _ cfg.Config, _ log.Logger, ro
 	router.GET("/result", BindN(func(context.Context) (serverOptionResponse, error) {
 		return serverOptionResponse{Message: "hello"}, nil
 	}))
+	router.GET("/error", BindN(func(context.Context) (serverOptionResponse, error) {
+		return serverOptionResponse{}, errors.New("server error")
+	}))
 
 	return nil
 }
@@ -231,4 +234,56 @@ func serveServerOptionsTestRequest(t *testing.T, server *HttpServer, accept stri
 	server.server.Handler.ServeHTTP(recorder, request)
 
 	return recorder
+}
+
+func TestNewServerOptionsKeepsErrorHandlersIndependent(t *testing.T) {
+	firstHandler := func(_ int, _ error) any {
+		return "first"
+	}
+	secondHandler := func(_ int, _ error) any {
+		return "second"
+	}
+
+	firstOptions, err := newServerOptions(WithErrorHandler(firstHandler))
+	require.NoError(t, err)
+
+	secondOptions, err := newServerOptions(WithErrorHandler(secondHandler))
+	require.NoError(t, err)
+
+	assert.Equal(t, "first", firstOptions.errorHandler(0, errors.New("ignored")))
+	assert.Equal(t, "second", secondOptions.errorHandler(0, errors.New("ignored")))
+}
+
+func TestNewServerWithSettingsUsesConfiguredErrorHandler(t *testing.T) {
+	handler := func(_ int, err error) any {
+		return struct {
+			Error string `json:"error"`
+		}{Error: err.Error()}
+	}
+
+	server := buildServerForOptionsTest(t, NewServerWithSettings(
+		t.Context(),
+		"test",
+		serverOptionRouterFactory,
+		&Settings{
+			Port: "0",
+			Mode: gin.TestMode,
+			Errors: ErrorsSettings{
+				Privacy: ErrorPrivacyPublic,
+			},
+			Compression: CompressionSettings{
+				Level: "none",
+			},
+		},
+		WithErrorHandler(handler),
+	))
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/error", http.NoBody)
+	request.Header.Set(HeaderAccept, ContentTypeApplicationJson)
+	server.server.Handler.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+	assert.Equal(t, ContentTypeJson, recorder.Header().Get(HeaderContentType))
+	assert.JSONEq(t, `{"error":"server error"}`, recorder.Body.String())
 }

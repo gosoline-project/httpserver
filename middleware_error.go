@@ -9,17 +9,27 @@ import (
 
 // ErrorMiddleware creates error middleware with default settings.
 func ErrorMiddleware() gin.HandlerFunc {
-	return ErrorMiddlewareWithMappers(ErrorsSettings{})
+	return ErrorMiddlewareWithHandler(ErrorsSettings{}, defaultErrorHandler)
 }
 
 // ErrorMiddlewareWithSettings converts Gin context errors into HTTP error responses.
 func ErrorMiddlewareWithSettings(settings ErrorsSettings) gin.HandlerFunc {
-	return ErrorMiddlewareWithMappers(settings)
+	return ErrorMiddlewareWithHandler(settings, defaultErrorHandler)
 }
 
 // ErrorMiddlewareWithMappers converts Gin context errors into HTTP error responses
 // with the provided application error mappers.
 func ErrorMiddlewareWithMappers(settings ErrorsSettings, mappers ...ErrorMapper) gin.HandlerFunc {
+	return ErrorMiddlewareWithHandler(settings, defaultErrorHandler, mappers...)
+}
+
+// ErrorMiddlewareWithHandler converts Gin context errors into HTTP error responses
+// with the provided error handler and application error mappers.
+func ErrorMiddlewareWithHandler(settings ErrorsSettings, handler ErrorHandler, mappers ...ErrorMapper) gin.HandlerFunc {
+	if handler == nil {
+		panic("error handler is required")
+	}
+
 	mappers = append([]ErrorMapper(nil), mappers...)
 
 	return func(c *gin.Context) {
@@ -38,16 +48,20 @@ func ErrorMiddlewareWithMappers(settings ErrorsSettings, mappers ...ErrorMapper)
 			errorHeaders = nil
 		}
 
-		writeErrorResponseWithHeaders(c, statusCode, err, errorHeaders)
+		writeErrorResponseWithHeaders(c, statusCode, err, errorHeaders, handler)
 	}
 }
 
 func writeErrorResponse(c *gin.Context, statusCode int, err error) {
-	writeErrorResponseWithHeaders(c, statusCode, err, headersFromError(err))
+	writeErrorResponseWithHandler(c, statusCode, err, defaultErrorHandler)
 }
 
-func writeErrorResponseWithHeaders(c *gin.Context, statusCode int, err error, errorHeaders http.Header) {
-	output := defaultErrorHandler(statusCode, err)
+func writeErrorResponseWithHandler(c *gin.Context, statusCode int, err error, handler ErrorHandler) {
+	writeErrorResponseWithHeaders(c, statusCode, err, headersFromError(err), handler)
+}
+
+func writeErrorResponseWithHeaders(c *gin.Context, statusCode int, err error, errorHeaders http.Header, handler ErrorHandler) {
+	output := handler(statusCode, err)
 	writeNegotiatedResponse(c, output, statusCode, errorHeaders)
 }
 

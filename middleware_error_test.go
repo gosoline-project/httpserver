@@ -1,7 +1,6 @@
 package httpserver_test
 
 import (
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"net/http"
@@ -45,15 +44,6 @@ type errorMiddlewareTestSuite struct {
 
 func TestErrorMiddlewareTestSuite(t *testing.T) {
 	suite.Run(t, new(errorMiddlewareTestSuite))
-}
-
-func restoreDefaultErrorHandler() {
-	httpserver.WithErrorHandler(func(_ int, err error) any {
-		return struct {
-			XMLName xml.Name `xml:"error" json:"-"`
-			Err     string   `json:"err" xml:"err"`
-		}{Err: err.Error()}
-	})
 }
 
 func (s *errorMiddlewareTestSuite) TestDefaultErrorReturnsGenericInternalServerError() {
@@ -136,19 +126,17 @@ func (s *errorMiddlewareTestSuite) TestErrorResponseUsesNegotiatedRepresentation
 }
 
 func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerBodyUsesNegotiation() {
-	defer restoreDefaultErrorHandler()
-
-	httpserver.WithErrorHandler(func(statusCode int, err error) any {
+	handler := func(statusCode int, err error) any {
 		s.Equal(http.StatusBadRequest, statusCode)
 		s.Equal("bad request detail", err.Error())
 
 		return struct {
 			Error string `json:"error"`
 		}{Error: err.Error()}
-	})
+	}
 
 	err := httpserver.NewErrorWithStatus(http.StatusBadRequest, errors.New("bad request detail"))
-	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddleware())
+	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddlewareWithHandler(httpserver.ErrorsSettings{}, handler))
 
 	s.Equal(http.StatusBadRequest, recorder.Code)
 	s.Equal(httpserver.ContentTypeJson, recorder.Header().Get(httpserver.HeaderContentType))
@@ -156,9 +144,7 @@ func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerBodyUsesNegotiation() {
 }
 
 func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerResponsePreservesExplicitResponse() {
-	defer restoreDefaultErrorHandler()
-
-	httpserver.WithErrorHandler(func(statusCode int, err error) any {
+	handler := func(statusCode int, err error) any {
 		s.Equal(http.StatusBadRequest, statusCode)
 		s.Equal("bad request detail", err.Error())
 
@@ -168,7 +154,7 @@ func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerResponsePreservesExplic
 			httpserver.WithHeader("X-Error-Source", "custom"),
 			httpserver.WithStatusCode(http.StatusTeapot),
 		)
-	})
+	}
 
 	negotiator, err := httpserver.NewContentNegotiator(
 		httpserver.ContentTypeApplicationJson,
@@ -180,7 +166,7 @@ func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerResponsePreservesExplic
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
-	router.Use(httpserver.ErrorMiddleware())
+	router.Use(httpserver.ErrorMiddlewareWithHandler(httpserver.ErrorsSettings{}, handler))
 	router.GET("/error", func(c *gin.Context) {
 		require.NotNil(s.T(), c.Error(httpserver.NewErrorWithStatus(http.StatusBadRequest, errors.New("bad request detail"))))
 	})

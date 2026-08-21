@@ -71,9 +71,8 @@ type errorResponseBody struct {
 	Err     string   `json:"err" xml:"err"`
 }
 
-// WithErrorHandler replaces the package-level error body handler.
-func WithErrorHandler(handler ErrorHandler) {
-	defaultErrorHandler = handler
+func defaultErrorHandler(_ int, err error) any {
+	return errorResponseBody{Err: err.Error()}
 }
 
 // GetErrorStatusCode returns the HTTP status code mapped from err, or 500 otherwise.
@@ -116,8 +115,4 @@ func errorStatusCodeFromMappers(err error, mappers []ErrorMapper) (int, bool) {
 	}
 
 	return 0, false
-}
-
-var defaultErrorHandler ErrorHandler = func(_ int, err error) any {
-	return errorResponseBody{Err: err.Error()}
 }

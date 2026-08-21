@@ -227,19 +227,36 @@ Options:
 - `WithHeader(key,value)` / `WithHeaders(http.Header)`
 - `WithStatusCode(int)`
 
-Custom error handlers should normally return an ordinary body value so the
-configured negotiator can encode it:
+Configure a custom error handler with `WithErrorHandler`. The package-level setter is no longer available. The option applies to one server and does not change other servers:
 
 ```go
-httpserver.WithErrorHandler(func(statusCode int, err error) any {
+factory := httpserver.NewServer(
+    "default",
+    Factory,
+    httpserver.WithErrorHandler(func(statusCode int, err error) any {
+        return struct {
+            Error string `json:"error"`
+        }{Error: err.Error()}
+    }),
+)
+```
+
+Pass the option to `NewServer`, `NewServerWithSettings`, or
+`RunServerWithOptions`. The handler should return an ordinary body value so the
+configured negotiator can encode it. A non-nil handler is required.
+
+For standalone Gin middleware, pass the same handler to the error and recovery
+middleware:
+
+```go
+handler := func(statusCode int, err error) any {
     return struct {
         Error string `json:"error"`
     }{Error: err.Error()}
-})
+}
+r.Use(httpserver.ErrorMiddlewareWithHandler(httpserver.ErrorsSettings{}, handler))
+r.Use(httpserver.RecoveryWithSentryAndErrorHandler(logger, handler))
 ```
-
-`WithErrorHandler` assigns the provided handler directly. Do not pass `nil`; use a
-non-nil handler for every error response.
 
 The mapped `statusCode` is applied by the middleware. Errors may implement
 `StatusCode()` and `Header()`, which lets them provide both the error status and

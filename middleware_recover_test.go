@@ -166,3 +166,33 @@ func TestRecoveryWithSentryCaseString(t *testing.T) {
 	loggerMock.AssertNumberOfCalls(t, "Warn", 0)
 	loggerMock.AssertNumberOfCalls(t, "Error", 1)
 }
+
+func TestRecoveryWithSentryAndErrorHandlerUsesConfiguredHandler(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	loggerMock := logMocks.NewLoggerMock(logMocks.WithMockAll, logMocks.WithTestingT(t))
+	handler := func(statusCode int, err error) any {
+		assert.Equal(t, http.StatusInternalServerError, statusCode)
+		assert.Equal(t, "something went wrong", err.Error())
+
+		return struct {
+			Error string `json:"error"`
+		}{Error: err.Error()}
+	}
+
+	r := gin.New()
+	r.Use(httpserver.RecoveryWithSentryAndErrorHandler(loggerMock, handler))
+	r.GET("/panic", func(_ *gin.Context) {
+		panic("something went wrong")
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/panic", http.NoBody)
+
+	r.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+	assert.Equal(t, httpserver.ContentTypeJson, recorder.Header().Get(httpserver.HeaderContentType))
+	assert.JSONEq(t, `{"error":"something went wrong"}`, recorder.Body.String())
+	loggerMock.AssertNumberOfCalls(t, "Error", 1)
+}

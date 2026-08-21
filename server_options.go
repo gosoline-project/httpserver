@@ -13,6 +13,7 @@ type ServerOption func(*serverOptions) error
 type serverOptions struct {
 	responseNegotiator ResponseNegotiator
 	errorMappers       []ErrorMapper
+	errorHandler       ErrorHandler
 }
 
 // WithResponseNegotiator configures the response negotiator used by the server.
@@ -23,6 +24,19 @@ func WithResponseNegotiator(negotiator ResponseNegotiator) ServerOption {
 		}
 
 		options.responseNegotiator = negotiator
+
+		return nil
+	}
+}
+
+// WithErrorHandler configures the error body handler used by the server.
+func WithErrorHandler(handler ErrorHandler) ServerOption {
+	return func(options *serverOptions) error {
+		if handler == nil {
+			return errors.New("error handler is required")
+		}
+
+		options.errorHandler = handler
 
 		return nil
 	}
@@ -44,6 +58,7 @@ func WithErrorMapper(mapper ErrorMapper) ServerOption {
 func newServerOptions(options ...ServerOption) (*serverOptions, error) {
 	opts := &serverOptions{
 		responseNegotiator: NewDefaultResponseNegotiator(),
+		errorHandler:       defaultErrorHandler,
 	}
 
 	for _, option := range options {
