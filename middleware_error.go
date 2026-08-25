@@ -52,10 +52,6 @@ func ErrorMiddlewareWithHandler(settings ErrorsSettings, handler ErrorHandler, m
 	}
 }
 
-func writeErrorResponse(c *gin.Context, statusCode int, err error) {
-	writeErrorResponseWithHandler(c, statusCode, err, defaultErrorHandler)
-}
-
 func writeErrorResponseWithHandler(c *gin.Context, statusCode int, err error, handler ErrorHandler) {
 	writeErrorResponseWithHeaders(c, statusCode, err, headersFromError(err), handler)
 }

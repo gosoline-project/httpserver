@@ -213,10 +213,6 @@ func responseFromOutput[O any](ginCtx *gin.Context, output O) (Response, error) 
 	return response, nil
 }
 
-func responseFromOutputWithStatus[O any](ginCtx *gin.Context, output O, statusCode int) (Response, error) {
-	return responseFromOutputWithStatusAndHeaders(ginCtx, output, statusCode, nil)
-}
-
 func responseFromOutputWithStatusAndHeaders[O any](ginCtx *gin.Context, output O, statusCode int, errorHeaders http.Header) (Response, error) {
 	var err error
 	var response Response
