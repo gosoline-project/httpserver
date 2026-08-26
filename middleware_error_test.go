@@ -14,6 +14,30 @@ import (
 	"github.com/stretchr/testify/suite"
 )
 
+type errorWithHeaders struct {
+	statusCode int
+}
+
+func (errorWithHeaders) Error() string {
+	return "error with headers"
+}
+
+func (err errorWithHeaders) StatusCode() int {
+	if err.statusCode != 0 {
+		return err.statusCode
+	}
+
+	return http.StatusTooManyRequests
+}
+
+func (errorWithHeaders) Header() http.Header {
+	return http.Header{
+		"X-Error":                   {"custom"},
+		"X-Multi-Value":             {"first", "second"},
+		httpserver.HeaderRetryAfter: {"30"},
+	}
+}
+
 type errorMiddlewareTestSuite struct {
 	suite.Suite
 }
@@ -53,6 +77,158 @@ func (s *errorMiddlewareTestSuite) TestStatusErrorReturnsStatusAndExposesError()
 
 	s.Equal(http.StatusBadRequest, recorder.Code)
 	s.JSONEq(`{"err":"bad request detail"}`, recorder.Body.String())
+}
+
+func (s *errorMiddlewareTestSuite) TestErrorWithStatusAndHeaders() {
+	err := fmt.Errorf("wrapped: %w", errorWithHeaders{})
+	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddleware())
+
+	s.Equal(http.StatusTooManyRequests, recorder.Code)
+	s.Equal("custom", recorder.Header().Get("X-Error"))
+	s.Equal([]string{"first", "second"}, recorder.Header().Values("X-Multi-Value"))
+	s.Equal("30", recorder.Header().Get(httpserver.HeaderRetryAfter))
+	s.JSONEq(`{"err":"wrapped: error with headers"}`, recorder.Body.String())
+}
+
+func (s *errorMiddlewareTestSuite) TestPrivateErrorDoesNotExposeErrorHeaders() {
+	err := errorWithHeaders{statusCode: http.StatusInternalServerError}
+	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddleware())
+
+	s.Equal(http.StatusInternalServerError, recorder.Code)
+	s.Empty(recorder.Header().Get("X-Error"))
+	s.JSONEq(`{"err":"internal server error"}`, recorder.Body.String())
+}
+
+func (s *errorMiddlewareTestSuite) TestErrorResponseUsesNegotiatedRepresentation() {
+	negotiator, err := httpserver.NewContentNegotiator(
+		httpserver.ContentTypeApplicationJson,
+		httpserver.JSONRepresentation(),
+		httpserver.XMLRepresentation(),
+	)
+	s.Require().NoError(err)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
+	router.Use(httpserver.ErrorMiddleware())
+	router.GET("/error", func(c *gin.Context) {
+		require.NotNil(s.T(), c.Error(httpserver.NewErrorWithStatus(http.StatusBadRequest, errors.New("bad request detail"))))
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/error", http.NoBody)
+	request.Header.Set(httpserver.HeaderAccept, httpserver.ContentTypeApplicationXml)
+	router.ServeHTTP(recorder, request)
+
+	s.Equal(http.StatusBadRequest, recorder.Code)
+	s.Equal(httpserver.ContentTypeXml, recorder.Header().Get(httpserver.HeaderContentType))
+	s.Equal(`<error><err>bad request detail</err></error>`, recorder.Body.String())
+}
+
+func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerBodyUsesNegotiation() {
+	handler := func(statusCode int, err error) any {
+		s.Equal(http.StatusBadRequest, statusCode)
+		s.Equal("bad request detail", err.Error())
+
+		return struct {
+			Error string `json:"error"`
+		}{Error: err.Error()}
+	}
+
+	err := httpserver.NewErrorWithStatus(http.StatusBadRequest, errors.New("bad request detail"))
+	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddlewareWithHandler(httpserver.ErrorsSettings{}, handler))
+
+	s.Equal(http.StatusBadRequest, recorder.Code)
+	s.Equal(httpserver.ContentTypeJson, recorder.Header().Get(httpserver.HeaderContentType))
+	s.JSONEq(`{"error":"bad request detail"}`, recorder.Body.String())
+}
+
+func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerResponsePreservesExplicitResponse() {
+	handler := func(statusCode int, err error) any {
+		s.Equal(http.StatusBadRequest, statusCode)
+		s.Equal("bad request detail", err.Error())
+
+		return httpserver.NewResponse(
+			httpserver.WithBody([]byte("custom error")),
+			httpserver.WithHeader(httpserver.HeaderContentType, httpserver.ContentTypeTextPlain),
+			httpserver.WithHeader("X-Error-Source", "custom"),
+			httpserver.WithStatusCode(http.StatusTeapot),
+		)
+	}
+
+	negotiator, err := httpserver.NewContentNegotiator(
+		httpserver.ContentTypeApplicationJson,
+		httpserver.JSONRepresentation(),
+		httpserver.XMLRepresentation(),
+	)
+	s.Require().NoError(err)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
+	router.Use(httpserver.ErrorMiddlewareWithHandler(httpserver.ErrorsSettings{}, handler))
+	router.GET("/error", func(c *gin.Context) {
+		require.NotNil(s.T(), c.Error(httpserver.NewErrorWithStatus(http.StatusBadRequest, errors.New("bad request detail"))))
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/error", http.NoBody)
+	request.Header.Set(httpserver.HeaderAccept, httpserver.ContentTypeApplicationXml)
+	router.ServeHTTP(recorder, request)
+
+	s.Equal(http.StatusTeapot, recorder.Code)
+	s.Equal(httpserver.ContentTypeTextPlain, recorder.Header().Get(httpserver.HeaderContentType))
+	s.Equal("custom", recorder.Header().Get("X-Error-Source"))
+	s.Equal("custom error", recorder.Body.String())
+}
+
+func (s *errorMiddlewareTestSuite) TestErrorResponseFallsBackToJSONWhenEncoderFails() {
+	expectedError := errors.New("cannot encode error")
+	negotiator, err := httpserver.NewContentNegotiator(
+		"application/problem+json",
+		httpserver.ResponseRepresentation{
+			MediaType: "application/problem+json",
+			Encode: func(any) ([]byte, error) {
+				return nil, expectedError
+			},
+		},
+	)
+	s.Require().NoError(err)
+
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
+	router.Use(httpserver.ErrorMiddleware())
+	router.GET("/error", func(c *gin.Context) {
+		require.NotNil(s.T(), c.Error(httpserver.NewErrorWithStatus(http.StatusTeapot, errors.New("bad request detail"))))
+	})
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/error", http.NoBody)
+	request.Header.Set(httpserver.HeaderAccept, "application/problem+json")
+	router.ServeHTTP(recorder, request)
+
+	s.Equal(http.StatusTeapot, recorder.Code)
+	s.Equal(httpserver.ContentTypeJson, recorder.Header().Get(httpserver.HeaderContentType))
+	s.Equal(httpserver.HeaderAccept, recorder.Header().Get(httpserver.HeaderVary))
+	s.JSONEq(`{"err":"bad request detail"}`, recorder.Body.String())
+}
+
+func (s *errorMiddlewareTestSuite) TestConfiguredErrorMapperReturnsForbidden() {
+	deniedError := errors.New("permission denied")
+	mapper := func(err error) (int, bool) {
+		if errors.Is(err, deniedError) {
+			return http.StatusForbidden, true
+		}
+
+		return 0, false
+	}
+
+	err := fmt.Errorf("handler failed: %w", deniedError)
+	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddlewareWithMappers(httpserver.ErrorsSettings{}, mapper))
+
+	s.Equal(http.StatusForbidden, recorder.Code)
+	s.JSONEq(`{"err":"handler failed: permission denied"}`, recorder.Body.String())
 }
 
 func (s *errorMiddlewareTestSuite) TestValidationErrorReturnsBadRequest() {

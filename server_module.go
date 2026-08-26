@@ -50,7 +50,7 @@ type HttpServer struct {
 }
 
 // NewServer creates a module factory for a named HTTP server using config-based settings.
-func NewServer(name string, definer RouterFactory) kernel.ModuleFactory {
+func NewServer(name string, definer RouterFactory, options ...ServerOption) kernel.ModuleFactory {
 	return func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
 		settings := &Settings{}
 		if err := config.UnmarshalKey(HttpserverSettingsKey(name), settings); err != nil {
@@ -58,15 +58,20 @@ func NewServer(name string, definer RouterFactory) kernel.ModuleFactory {
 		}
 		settings.Name = name
 
-		return NewServerWithSettings(ctx, name, definer, settings)(ctx, config, logger)
+		return NewServerWithSettings(ctx, name, definer, settings, options...)(ctx, config, logger)
 	}
 }
 
 // NewServerWithSettings creates a module factory for a named HTTP server using explicit settings.
-func NewServerWithSettings(_ context.Context, name string, definer RouterFactory, settings *Settings) kernel.ModuleFactory {
+func NewServerWithSettings(_ context.Context, name string, definer RouterFactory, settings *Settings, options ...ServerOption) kernel.ModuleFactory {
 	settings.Name = name
 
 	return func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
+		serverOpts, optionsErr := newServerOptions(options...)
+		if optionsErr != nil {
+			return nil, fmt.Errorf("could not configure server options: %w", optionsErr)
+		}
+
 		channel := fmt.Sprintf("httpserver-%s", name)
 		logger = logger.WithChannel(channel)
 
@@ -104,13 +109,14 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 		router := gin.New()
 		router.ContextWithFallback = true
 		router.UseRawPath = settings.Router.UseRawPath
+		router.Use(ResponseNegotiationMiddleware(serverOpts.responseNegotiator))
 		router.Use(samplingMiddleware)
 		router.Use(metricMiddleware)
 		router.Use(LoggingMiddleware(logger, settings.Logging))
 		router.Use(compressionMiddlewares...)
 		router.Use(MaxBodySizeMiddleware(settings.MaxBodyBytes))
-		router.Use(ErrorMiddlewareWithSettings(settings.Errors))
-		router.Use(RecoveryWithSentry(logger))
+		router.Use(ErrorMiddlewareWithHandler(settings.Errors, serverOpts.errorHandler, serverOpts.errorMappers...))
+		router.Use(RecoveryWithSentryAndErrorHandler(logger, serverOpts.errorHandler))
 		router.Use(location.Default())
 		router.Use(connectionLifeCycleInterceptor)
 

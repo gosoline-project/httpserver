@@ -102,7 +102,7 @@ func buildHealthCheckHandler(logger log.Logger, healthChecker kernel.HealthCheck
 		result := healthChecker()
 
 		if result.IsHealthy() {
-			c.JSON(http.StatusOK, gin.H{})
+			writeNegotiatedResponse(c, healthCheckResponse{}, http.StatusOK)
 
 			return
 		}
@@ -112,11 +112,13 @@ func buildHealthCheckHandler(logger log.Logger, healthChecker kernel.HealthCheck
 			logger.Error(ctx, "encountered an error during the health check: %w", result.Err())
 		}
 
-		resp := gin.H{}
+		response := healthCheckResponse{}
 		for _, module := range result.GetUnhealthy() {
-			resp[module.Name] = "unhealthy"
+			response[module.Name] = "unhealthy"
 		}
 
-		c.JSON(http.StatusInternalServerError, resp)
+		writeNegotiatedResponse(c, response, http.StatusInternalServerError)
 	}
 }
+
+type healthCheckResponse map[string]string

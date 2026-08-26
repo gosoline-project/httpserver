@@ -109,6 +109,52 @@ func (s *MiddlewareConcurrencyTestSuite) TestRejectsWhenLimitReached() {
 	s.Equal(http.StatusNoContent, <-firstResult)
 }
 
+func (s *MiddlewareConcurrencyTestSuite) TestRejectsWithNegotiatedRepresentation() {
+	negotiator, err := httpserver.NewContentNegotiator(
+		httpserver.ContentTypeApplicationJson,
+		httpserver.JSONRepresentation(),
+		httpserver.XMLRepresentation(),
+	)
+	s.Require().NoError(err)
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	var enteredOnce sync.Once
+	router := gin.New()
+	router.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
+	router.Use(httpserver.ConcurrentRequestLimitMiddleware(httpserver.ConcurrencySettings{
+		MaxRequests:        1,
+		OverloadStatusCode: http.StatusTooManyRequests,
+	}))
+	router.GET("/", func(c *gin.Context) {
+		enteredOnce.Do(func() {
+			close(entered)
+		})
+		<-release
+		c.Status(http.StatusNoContent)
+	})
+
+	firstResult := make(chan int)
+	go func() {
+		recorder := httptest.NewRecorder()
+		router.ServeHTTP(recorder, s.newRequest())
+		firstResult <- recorder.Code
+	}()
+	<-entered
+
+	recorder := httptest.NewRecorder()
+	request := s.newRequest()
+	request.Header.Set(httpserver.HeaderAccept, httpserver.ContentTypeApplicationXml)
+	router.ServeHTTP(recorder, request)
+
+	s.Equal(http.StatusTooManyRequests, recorder.Code)
+	s.Equal(httpserver.ContentTypeXml, recorder.Header().Get(httpserver.HeaderContentType))
+	s.Equal(`<error><message>server overloaded</message></error>`, recorder.Body.String())
+
+	close(release)
+	s.Equal(http.StatusNoContent, <-firstResult)
+}
+
 func (s *MiddlewareConcurrencyTestSuite) TestReleasesSlotAfterRequest() {
 	router := s.newConcurrentRequestLimitRouter(httpserver.ConcurrencySettings{MaxRequests: 1}, nil, nil)
 

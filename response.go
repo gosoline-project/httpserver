@@ -6,6 +6,16 @@ import (
 	"github.com/justtrackio/gosoline/pkg/encoding/json"
 )
 
+// StatusCode is implemented by handler outputs that provide an HTTP status code.
+type StatusCode interface {
+	StatusCode() int
+}
+
+// HeaderProvider is implemented by handler outputs and errors that provide HTTP headers.
+type HeaderProvider interface {
+	Header() http.Header
+}
+
 // Response is the typed response returned by bound HTTP handlers.
 type Response interface {
 	ContentType() string

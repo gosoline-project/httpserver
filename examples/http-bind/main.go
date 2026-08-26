@@ -34,18 +34,18 @@ func NewHandler(ctx context.Context, config cfg.Config, logger log.Logger) (*Han
 	return &Handler{}, nil
 }
 
-func (r *Handler) HandleA(ctx context.Context, input *InputA) (httpserver.Response, error) {
-	return httpserver.NewJsonResponse(map[string]any{
+func (r *Handler) HandleA(ctx context.Context, input *InputA) (map[string]any, error) {
+	return map[string]any{
 		"message": "Hello from A",
 		"input":   *input,
-	}), nil
+	}, nil
 }
 
-func (r *Handler) HandleB(ctx context.Context, input *InputB) (httpserver.Response, error) {
-	return httpserver.NewJsonResponse(map[string]any{
+func (r *Handler) HandleB(ctx context.Context, input *InputB) (map[string]any, error) {
+	return map[string]any{
 		"message": "Hello from B",
 		"input":   *input,
-	}), nil
+	}, nil
 }
 
 func (r *Handler) HandleErr(ctx context.Context) (httpserver.Response, error) {
