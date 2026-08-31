@@ -145,6 +145,30 @@ func (s *loggingMiddlewareTestSuite) TestDefaultError() {
 	s.handler(ginCtx)
 }
 
+func (s *loggingMiddlewareTestSuite) TestClientStatusError() {
+	ginCtx := buildRequest()
+	err := fmt.Errorf("handler failed: %w", httpserver.NewErrorWithStatus(http.StatusForbidden, fmt.Errorf("forbidden")))
+
+	ginErr := ginCtx.Error(err)
+
+	s.Require().Error(ginErr)
+	s.logger.EXPECT().Warn(matcher.Context, "%s %s %s: %w", "GET", "path", "HTTP/1.1", err)
+
+	s.handler(ginCtx)
+}
+
+func (s *loggingMiddlewareTestSuite) TestServerStatusError() {
+	ginCtx := buildRequest()
+	err := httpserver.NewErrorWithStatus(http.StatusInternalServerError, fmt.Errorf("internal error"))
+
+	ginErr := ginCtx.Error(err)
+
+	s.Require().Error(ginErr)
+	s.logger.EXPECT().Error(matcher.Context, "%s %s %s: %w", "GET", "path", "HTTP/1.1", err)
+
+	s.handler(ginCtx)
+}
+
 func TestLogFields(t *testing.T) {
 	ginCtx := buildRequest()
 	ginCtx.Request.Host = "host.io"
