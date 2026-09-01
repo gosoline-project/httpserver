@@ -166,12 +166,23 @@ func (lc *logCall) finalize(ginCtx *gin.Context, requestTimeSecond float64) {
 			logger.Warn(ctx, "%s %s %s - bind error: %s", method, path, proto, formatBindError(e.Err))
 		case e.IsType(gin.ErrorTypeRender):
 			logger.Warn(ctx, "%s %s %s - render error: %s", method, path, proto, e.Err.Error())
+		case isClientStatusError(e.Err):
+			logger.Warn(ctx, "%s %s %s: %w", method, path, proto, e.Err)
 		case validation.IsValidationError(e):
 			logger.Warn(ctx, "%s %s %s - validation error: %s", method, path, proto, e.Err.Error())
 		default:
 			logger.Error(ctx, "%s %s %s: %w", method, path, proto, e.Err)
 		}
 	}
+}
+
+func isClientStatusError(err error) bool {
+	var errWithStatus ErrorWithStatus
+	if !errors.As(err, &errWithStatus) {
+		return false
+	}
+
+	return errWithStatus.StatusCode() >= http.StatusBadRequest && errWithStatus.StatusCode() < http.StatusInternalServerError
 }
 
 func formatBindError(err error) string {
