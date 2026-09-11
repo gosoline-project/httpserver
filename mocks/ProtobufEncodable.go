@@ -15,10 +15,19 @@ func NewProtobufEncodable(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *ProtobufEncodable {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &ProtobufEncodable{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }
@@ -81,8 +90,8 @@ func (_c *ProtobufEncodable_ToMessage_Call) Run(run func()) *ProtobufEncodable_T
 	return _c
 }
 
-func (_c *ProtobufEncodable_ToMessage_Call) Return(v proto.Message, err error) *ProtobufEncodable_ToMessage_Call {
-	_c.Call.Return(v, err)
+func (_c *ProtobufEncodable_ToMessage_Call) Return(message proto.Message, err error) *ProtobufEncodable_ToMessage_Call {
+	_c.Call.Return(message, err)
 	return _c
 }
 

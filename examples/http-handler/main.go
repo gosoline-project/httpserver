@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -13,7 +14,7 @@ import (
 
 func main() {
 	httpserver.RunDefaultServer(func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
-		router.GET("/bla", func(ctx *gin.Context) {
+		router.Handle(http.MethodGet, "/bla", func(ctx *gin.Context) {
 			if _, err := ctx.Writer.WriteString("bla"); err != nil {
 				ginErr := ctx.Error(err)
 				ginErr.Type = gin.ErrorTypePrivate
@@ -21,14 +22,14 @@ func main() {
 		})
 
 		grp := router.Group("grp")
-		grp.GET("/bla", func(ctx *gin.Context) {
+		grp.Handle(http.MethodGet, "/bla", func(ctx *gin.Context) {
 			if _, err := ctx.Writer.WriteString("grouped bla"); err != nil {
 				ginErr := ctx.Error(err)
 				ginErr.Type = gin.ErrorTypePrivate
 			}
 		})
 
-		router.GET("/blocking", func(ctx *gin.Context) {
+		router.Handle(http.MethodGet, "/blocking", func(ctx *gin.Context) {
 			timer := clock.NewRealTimer(time.Second * 5)
 
 			select {

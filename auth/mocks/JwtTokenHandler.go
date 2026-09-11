@@ -16,10 +16,19 @@ func NewJwtTokenHandler(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *JwtTokenHandler {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &JwtTokenHandler{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }
@@ -72,7 +81,7 @@ type JwtTokenHandler_Sign_Call struct {
 
 // Sign is a helper method to define mock.On call
 //   - user auth.SignUserInput
-func (_e *JwtTokenHandler_Expecter) Sign(user interface{}) *JwtTokenHandler_Sign_Call {
+func (_e *JwtTokenHandler_Expecter) Sign(user any) *JwtTokenHandler_Sign_Call {
 	return &JwtTokenHandler_Sign_Call{Call: _e.mock.On("Sign", user)}
 }
 
@@ -134,7 +143,7 @@ type JwtTokenHandler_SignClaims_Call struct {
 
 // SignClaims is a helper method to define mock.On call
 //   - claims auth.Claims
-func (_e *JwtTokenHandler_Expecter) SignClaims(claims interface{}) *JwtTokenHandler_SignClaims_Call {
+func (_e *JwtTokenHandler_Expecter) SignClaims(claims any) *JwtTokenHandler_SignClaims_Call {
 	return &JwtTokenHandler_SignClaims_Call{Call: _e.mock.On("SignClaims", claims)}
 }
 
@@ -202,7 +211,7 @@ type JwtTokenHandler_Valid_Call struct {
 
 // Valid is a helper method to define mock.On call
 //   - jwtToken string
-func (_e *JwtTokenHandler_Expecter) Valid(jwtToken interface{}) *JwtTokenHandler_Valid_Call {
+func (_e *JwtTokenHandler_Expecter) Valid(jwtToken any) *JwtTokenHandler_Valid_Call {
 	return &JwtTokenHandler_Valid_Call{Call: _e.mock.On("Valid", jwtToken)}
 }
 

@@ -15,10 +15,19 @@ func NewAuthenticator(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *Authenticator {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &Authenticator{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }
@@ -69,7 +78,7 @@ type Authenticator_IsValid_Call struct {
 
 // IsValid is a helper method to define mock.On call
 //   - ginCtx *gin.Context
-func (_e *Authenticator_Expecter) IsValid(ginCtx interface{}) *Authenticator_IsValid_Call {
+func (_e *Authenticator_Expecter) IsValid(ginCtx any) *Authenticator_IsValid_Call {
 	return &Authenticator_IsValid_Call{Call: _e.mock.On("IsValid", ginCtx)}
 }
 

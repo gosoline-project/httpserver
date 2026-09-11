@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gosoline-project/httpserver"
+	"github.com/gosoline-project/httpserver/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,13 +41,14 @@ func (negotiatedOutputWithMetadata) Header() http.Header {
 
 type negotiatedHandler struct{}
 
-func (negotiatedHandler) Handle(context.Context, *struct{}) (negotiatedOutput, error) {
+func (negotiatedHandler) Handle(context.Context, *http.Request, *struct{}) (negotiatedOutput, error) {
 	return negotiatedOutput{Name: "alice"}, nil
 }
 
 var (
+	_ httpserver.Handler[struct{}, negotiatedOutput]     = (*mocks.Handler[struct{}, negotiatedOutput])(nil)
 	_ httpserver.Handler[struct{}, negotiatedOutput]     = negotiatedHandler{}
-	_ httpserver.HandlerFunc[struct{}, negotiatedOutput] = func(context.Context, *struct{}) (negotiatedOutput, error) {
+	_ httpserver.HandlerFunc[struct{}, negotiatedOutput] = func(context.Context, *http.Request, *struct{}) (negotiatedOutput, error) {
 		return negotiatedOutput{}, nil
 	}
 )
@@ -55,7 +57,7 @@ func TestTypedHandlerInterfaceRendersOutput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(httpserver.ErrorMiddleware())
-	router.GET("/result", httpserver.Bind(negotiatedHandler{}.Handle))
+	router.GET("/result", httpserver.BindR(negotiatedHandler{}.Handle))
 
 	recorder := serveRequest(router, http.MethodGet, "/result", "")
 
@@ -65,13 +67,13 @@ func TestTypedHandlerInterfaceRendersOutput(t *testing.T) {
 
 func TestTypedHandlerFuncRendersOutput(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	handler := httpserver.HandlerFunc[struct{}, negotiatedOutput](func(context.Context, *struct{}) (negotiatedOutput, error) {
+	handler := httpserver.HandlerFunc[struct{}, negotiatedOutput](func(context.Context, *http.Request, *struct{}) (negotiatedOutput, error) {
 		return negotiatedOutput{Name: "alice"}, nil
 	})
 
 	router := gin.New()
 	router.Use(httpserver.ErrorMiddleware())
-	router.GET("/result", httpserver.Bind[struct{}, negotiatedOutput](handler))
+	router.GET("/result", httpserver.BindR[struct{}, negotiatedOutput](handler))
 
 	recorder := serveRequest(router, http.MethodGet, "/result", "")
 
