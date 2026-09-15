@@ -302,6 +302,23 @@ resp := httpserver.HttpTest(http.MethodPost, "/path", "/path", `{"x":1}`, handle
 
 Table-driven tests for binding and responses are provided in the repository as examples.
 
+HTTP server test cases must provide routes through
+`TestingSuiteHttpServerRouterAware`. To configure the test server, also implement
+the optional `TestingSuiteHttpServerOptionsAware` interface:
+
+```go
+func (s *HttpSuite) SetupHttpServerOptions() []httpserver.ServerOption {
+	return []httpserver.ServerOption{
+		httpserver.WithErrorHandler(func(_ int, err error) any {
+			return map[string]string{"error": err.Error()}
+		}),
+	}
+}
+```
+
+The runner calls `SetupHttpServerOptions` after `SetT` and passes the returned
+options to `NewServer`.
+
 ## Router Factories
 
 You can modularize route registration:

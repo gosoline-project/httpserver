@@ -26,6 +26,11 @@ type TestingSuiteHttpServerRouterAware interface {
 	SetupHttpServerRouter() RouterFactory
 }
 
+// TestingSuiteHttpServerOptionsAware lets HTTP server test suites provide server options.
+type TestingSuiteHttpServerOptionsAware interface {
+	SetupHttpServerOptions() []ServerOption
+}
+
 func isTestCaseHttpserver(s suite.TestingSuite, method reflect.Method) error {
 	if _, ok := s.(TestingSuiteHttpServerRouterAware); !ok {
 		return fmt.Errorf("the suite has to implement the TestingSuiteHttpServerRouterAware interface to be able to run httpserver test cases")
@@ -106,6 +111,11 @@ func runTestCaseHttpserver(s suite.TestingSuite, testCase func(suite suite.Testi
 
 		routerFactory := httpServerRouterAware.SetupHttpServerRouter()
 
+		var serverOptions []ServerOption
+		if httpServerOptionsAware, ok := s.(TestingSuiteHttpServerOptionsAware); ok {
+			serverOptions = httpServerOptionsAware.SetupHttpServerOptions()
+		}
+
 		configOverrides := []cfg.Option{
 			cfg.WithConfigMap(map[string]any{
 				"httpserver": map[string]any{
@@ -141,7 +151,7 @@ func runTestCaseHttpserver(s suite.TestingSuite, testCase func(suite suite.Testi
 				var err error
 				var module kernel.Module
 
-				if module, err = NewServer("default", routerFactory)(ctx, config, logger); err != nil {
+				if module, err = NewServer("default", routerFactory, serverOptions...)(ctx, config, logger); err != nil {
 					return nil, fmt.Errorf("failed to create test http server: %w", err)
 				}
 
