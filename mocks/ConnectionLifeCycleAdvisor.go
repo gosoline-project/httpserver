@@ -16,10 +16,19 @@ func NewConnectionLifeCycleAdvisor(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *ConnectionLifeCycleAdvisor {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &ConnectionLifeCycleAdvisor{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }
@@ -62,7 +71,7 @@ type ConnectionLifeCycleAdvisor_ShouldCloseConnection_Call struct {
 // ShouldCloseConnection is a helper method to define mock.On call
 //   - remoteAddr string
 //   - headers http.Header
-func (_e *ConnectionLifeCycleAdvisor_Expecter) ShouldCloseConnection(remoteAddr interface{}, headers interface{}) *ConnectionLifeCycleAdvisor_ShouldCloseConnection_Call {
+func (_e *ConnectionLifeCycleAdvisor_Expecter) ShouldCloseConnection(remoteAddr any, headers any) *ConnectionLifeCycleAdvisor_ShouldCloseConnection_Call {
 	return &ConnectionLifeCycleAdvisor_ShouldCloseConnection_Call{Call: _e.mock.On("ShouldCloseConnection", remoteAddr, headers)}
 }
 

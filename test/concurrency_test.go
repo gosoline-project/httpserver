@@ -41,13 +41,13 @@ func (s *ConcurrencyTestSuite) SetupTest() error {
 
 func (s *ConcurrencyTestSuite) SetupHttpServerRouter() moduleHttpserver.RouterFactory {
 	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *moduleHttpserver.Router) error {
-		router.GET("/block", func(c *gin.Context) {
+		router.Handle(netHttp.MethodGet, "/block", func(c *gin.Context) {
 			s.enteredHandler.Signal()
 
 			<-s.releaseHandler.Channel()
 			c.Status(netHttp.StatusNoContent)
 		})
-		router.GET("/ok", func(c *gin.Context) {
+		router.Handle(netHttp.MethodGet, "/ok", func(c *gin.Context) {
 			c.Status(netHttp.StatusNoContent)
 		})
 

@@ -13,9 +13,9 @@ import (
 
 type (
 	Handler[I, O any] interface {
-		Handle(ctx context.Context, input *I) (O, error)
+		Handle(ctx context.Context, req *http.Request, input *I) (O, error)
 	}
-	HandlerFunc[I, O any] func(ctx context.Context, input *I) (O, error)
+	HandlerFunc[I, O any] func(ctx context.Context, req *http.Request, input *I) (O, error)
 	// RouterFactory defines routes on the provided router during server startup.
 	RouterFactory func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router) error
 	// MiddlewareFactory creates a Gin middleware from application dependencies and server settings.
@@ -101,39 +101,50 @@ func (d *Router) Handle(httpMethod, relativePath string, handlers ...gin.Handler
 	})
 }
 
-// HandleWith adds a registration factory, usually created with With, to the router.
-func (r *Router) HandleWith(registerFactory RegisterFactoryFunc) {
-	r.registerFactories = append(r.registerFactories, registerFactory)
+// HandleWith creates a handler during server startup and registers its routes.
+func (r *Router) HandleWith[H any](handlerFactory HandlerFactory[H], register RegisterFunc[H]) {
+	r.registerFactories = append(r.registerFactories, func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router) (func(router *Router), error) {
+		var err error
+		var handler *H
+
+		if handler, err = handlerFactory(ctx, config, logger); err != nil {
+			return nil, fmt.Errorf("failed to create handler of type %T: %w", *new(H), err)
+		}
+
+		return func(router *Router) {
+			register(router, handler)
+		}, nil
+	})
 }
 
 // PATCH registers a PATCH route.
-func (d *Router) PATCH(relativePath string, handlers ...gin.HandlerFunc) {
-	d.Handle(http.MethodPatch, relativePath, handlers...)
+func (d *Router) PATCH[I any, O any](relativePath string, handler HandlerFunc[I, O]) {
+	d.Handle(http.MethodPatch, relativePath, BindR(handler))
 }
 
 // POST registers a POST route.
-func (d *Router) POST(relativePath string, handlers ...gin.HandlerFunc) {
-	d.Handle(http.MethodPost, relativePath, handlers...)
+func (d *Router) POST[I any, O any](relativePath string, handler HandlerFunc[I, O]) {
+	d.Handle(http.MethodPost, relativePath, BindR(handler))
 }
 
 // GET registers a GET route.
-func (d *Router) GET(relativePath string, handlers ...gin.HandlerFunc) {
-	d.Handle(http.MethodGet, relativePath, handlers...)
+func (d *Router) GET[I any, O any](relativePath string, handler HandlerFunc[I, O]) {
+	d.Handle(http.MethodGet, relativePath, BindR(handler))
 }
 
 // DELETE registers a DELETE route.
-func (d *Router) DELETE(relativePath string, handlers ...gin.HandlerFunc) {
-	d.Handle(http.MethodDelete, relativePath, handlers...)
+func (d *Router) DELETE[I any, O any](relativePath string, handler HandlerFunc[I, O]) {
+	d.Handle(http.MethodDelete, relativePath, BindR(handler))
 }
 
 // PUT registers a PUT route.
-func (d *Router) PUT(relativePath string, handlers ...gin.HandlerFunc) {
-	d.Handle(http.MethodPut, relativePath, handlers...)
+func (d *Router) PUT[I any, O any](relativePath string, handler HandlerFunc[I, O]) {
+	d.Handle(http.MethodPut, relativePath, BindR(handler))
 }
 
 // OPTIONS registers an OPTIONS route.
-func (d *Router) OPTIONS(relativePath string, handlers ...gin.HandlerFunc) {
-	d.Handle(http.MethodOptions, relativePath, handlers...)
+func (d *Router) OPTIONS[I any, O any](relativePath string, handler HandlerFunc[I, O]) {
+	d.Handle(http.MethodOptions, relativePath, BindR(handler))
 }
 
 func buildRouter(ctx context.Context, config cfg.Config, logger log.Logger, settings *Settings, definitions *Router, router gin.IRouter) ([]Definition, error) {

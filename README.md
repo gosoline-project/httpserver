@@ -27,6 +27,7 @@ package main
 import (
     "context"
     "fmt"
+    "net/http"
 
     "github.com/gosoline-project/httpserver"
     "github.com/justtrackio/gosoline/pkg/cfg"
@@ -35,11 +36,11 @@ import (
 
 func main() {
     httpserver.RunDefaultServer(func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
-        router.HandleWith(httpserver.With(NewHandler, func(router *httpserver.Router, h *Handler) {
-            router.POST("/a", httpserver.Bind(h.HandleA))
-            router.GET("/b", httpserver.Bind(h.HandleB))
-            router.GET("/err", httpserver.BindN(h.HandleErr))
-        }))
+        router.HandleWith(NewHandler, func(router *httpserver.Router, h *Handler) {
+            router.POST("/a", h.HandleA)
+            router.GET("/b", h.HandleB)
+            router.Handle(http.MethodGet, "/err", httpserver.BindN(h.HandleErr))
+        })
         return nil
     })
 }
@@ -58,11 +59,11 @@ func NewHandler(ctx context.Context, config cfg.Config, logger log.Logger) (*Han
     return &Handler{}, nil
 }
 
-func (h *Handler) HandleA(ctx context.Context, in *InputA) (map[string]any, error) {
+func (h *Handler) HandleA(ctx context.Context, _ *http.Request, in *InputA) (map[string]any, error) {
     return map[string]any{"message": "Hello from A", "input": in}, nil
 }
 
-func (h *Handler) HandleB(ctx context.Context, in *InputB) (map[string]any, error) {
+func (h *Handler) HandleB(ctx context.Context, _ *http.Request, in *InputB) (map[string]any, error) {
     return map[string]any{"message": "Hello from B", "input": in}, nil
 }
 
@@ -108,10 +109,10 @@ The public handler abstractions use the same input/output type parameters:
 
 ```go
 type Handler[I, O any] interface {
-    Handle(context.Context, *I) (O, error)
+    Handle(context.Context, *http.Request, *I) (O, error)
 }
 
-type HandlerFunc[I, O any] func(context.Context, *I) (O, error)
+type HandlerFunc[I, O any] func(context.Context, *http.Request, *I) (O, error)
 ```
 
 The additional `O` parameter is a breaking API change from the former
@@ -119,6 +120,12 @@ The additional `O` parameter is a breaking API change from the former
 adding their return type, for example `Handler[Input, Output]`. Handlers that
 return explicit responses should use `Handler[Input, httpserver.Response]`. The
 generated mock uses the same arity: `mocks.NewHandler[Input, Output](t)`.
+
+Handlers receive the raw `*http.Request` between the context and bound input.
+Pass these handlers directly to the typed router methods (`GET`, `POST`, and
+the other HTTP verbs). Register Gin handlers and explicit `Bind*` adapters with
+`router.Handle(http.MethodGet, path, handlers...)`. `HandleWith` now takes
+the handler factory and registration callback directly.
 
 `O` can be any value. The server negotiates and encodes ordinary values using
 `Accept`, with JSON as the default representation. Return an explicit
@@ -131,7 +138,7 @@ Typed handler results are encoded according to the request's `Accept` header.
 The built-in server configures JSON by default:
 
 ```go
-func (h *Handler) Handle(ctx context.Context, input *Input) (Output, error) {
+func (h *Handler) Handle(ctx context.Context, _ *http.Request, input *Input) (Output, error) {
     return Output{Ok: true}, nil
 }
 ```
@@ -326,9 +333,9 @@ You can modularize route registration:
 ```go
 func Factory(ctx context.Context, cfg cfg.Config, log log.Logger, root *httpserver.Router) error {
     api := root.Group("api")
-    api.GET("/health", httpserver.BindN(func(ctx context.Context) (map[string]string, error) {
+    api.GET("/health", func(ctx context.Context, _ *http.Request, _ *struct{}) (map[string]string, error) {
         return map[string]string{"status":"ok"}, nil
-    }))
+    })
     return nil
 }
 ```

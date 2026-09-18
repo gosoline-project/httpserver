@@ -16,10 +16,19 @@ func NewSseResponseWriter(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *SseResponseWriter {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &SseResponseWriter{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }
@@ -149,7 +158,7 @@ type SseResponseWriter_Write_Call struct {
 
 // Write is a helper method to define mock.On call
 //   - bytes []byte
-func (_e *SseResponseWriter_Expecter) Write(bytes interface{}) *SseResponseWriter_Write_Call {
+func (_e *SseResponseWriter_Expecter) Write(bytes any) *SseResponseWriter_Write_Call {
 	return &SseResponseWriter_Write_Call{Call: _e.mock.On("Write", bytes)}
 }
 
@@ -189,7 +198,7 @@ type SseResponseWriter_WriteHeader_Call struct {
 
 // WriteHeader is a helper method to define mock.On call
 //   - statusCode int
-func (_e *SseResponseWriter_Expecter) WriteHeader(statusCode interface{}) *SseResponseWriter_WriteHeader_Call {
+func (_e *SseResponseWriter_Expecter) WriteHeader(statusCode any) *SseResponseWriter_WriteHeader_Call {
 	return &SseResponseWriter_WriteHeader_Call{Call: _e.mock.On("WriteHeader", statusCode)}
 }
 

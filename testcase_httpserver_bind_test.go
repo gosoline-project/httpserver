@@ -43,17 +43,17 @@ func (s *HttpServerBindTestSuite) SetupSuite() []suite.Option {
 
 func (s *HttpServerBindTestSuite) SetupHttpServerRouter() httpserver.RouterFactory {
 	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
-		router.POST("/json", httpserver.Bind(func(ctx context.Context, input *InputJson) (httpserver.Response, error) {
+		router.POST("/json", func(ctx context.Context, _ *http.Request, input *InputJson) (httpserver.Response, error) {
 			return httpserver.NewJsonResponse(input), nil
-		}))
+		})
 
-		router.GET("/object/:id", httpserver.Bind(func(ctx context.Context, input *InputUri) (httpserver.Response, error) {
+		router.GET("/object/:id", func(ctx context.Context, _ *http.Request, input *InputUri) (httpserver.Response, error) {
 			return httpserver.NewJsonResponse(input), nil
-		}))
+		})
 
-		router.POST("/mixed/:id", httpserver.Bind(func(ctx context.Context, input *InputMixed) (httpserver.Response, error) {
+		router.POST("/mixed/:id", func(ctx context.Context, _ *http.Request, input *InputMixed) (httpserver.Response, error) {
 			return httpserver.NewJsonResponse(input), nil
-		}))
+		})
 
 		return nil
 	}

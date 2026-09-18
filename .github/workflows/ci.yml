@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  GO_VERSION: "1.27.0"
+
 jobs:
   build:
     name: build
@@ -21,7 +24,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version: ${{ env.GO_VERSION }}
           cache: true
 
       - name: Build
@@ -38,7 +41,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version: ${{ env.GO_VERSION }}
           cache: true
 
       - name: Test
@@ -55,14 +58,17 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version-file: go.mod
+          go-version: ${{ env.GO_VERSION }}
           cache: true
 
       - name: Install golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.10.1
+          version: v2.13.2
           install-only: true
+
+      - name: Build custom golangci-lint
+        run: golangci-lint custom
 
       - name: Run custom golangci-lint
         run: ./bin/custom-gcl run
