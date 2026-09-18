@@ -167,7 +167,7 @@ func (lc *logCall) finalize(ginCtx *gin.Context, requestTimeSecond float64) {
 		case e.IsType(gin.ErrorTypeRender):
 			logger.Warn(ctx, "%s %s %s - render error: %s", method, path, proto, e.Err.Error())
 		case isClientStatusError(e.Err):
-			logger.Warn(ctx, "%s %s %s: %w", method, path, proto, e.Err)
+			logger.Warn(ctx, "%s %s %s: %s", method, path, proto, e.Err)
 		case validation.IsValidationError(e):
 			logger.Warn(ctx, "%s %s %s - validation error: %s", method, path, proto, e.Err.Error())
 		default:

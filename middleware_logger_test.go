@@ -152,7 +152,7 @@ func (s *loggingMiddlewareTestSuite) TestClientStatusError() {
 	ginErr := ginCtx.Error(err)
 
 	s.Require().Error(ginErr)
-	s.logger.EXPECT().Warn(matcher.Context, "%s %s %s: %w", "GET", "path", "HTTP/1.1", err)
+	s.logger.EXPECT().Warn(matcher.Context, "%s %s %s: %s", "GET", "path", "HTTP/1.1", err)
 
 	s.handler(ginCtx)
 }
