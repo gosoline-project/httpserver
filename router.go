@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
 
@@ -45,6 +46,7 @@ type Router struct {
 	registerFactories   []RegisterFactoryFunc
 	middlewareFactories []MiddlewareFactory
 	routes              []Definition
+	handlerClosers      []io.Closer
 
 	children []*Router
 	parent   *Router
@@ -104,6 +106,14 @@ func (d *Router) Handle(httpMethod, relativePath string, handlers ...gin.Handler
 // HandleWith adds a registration factory, usually created with With, to the router.
 func (r *Router) HandleWith(registerFactory RegisterFactoryFunc) {
 	r.registerFactories = append(r.registerFactories, registerFactory)
+}
+
+func (r *Router) addHandlerCloser(closer io.Closer) {
+	for r.parent != nil {
+		r = r.parent
+	}
+
+	r.handlerClosers = append(r.handlerClosers, closer)
 }
 
 // PATCH registers a PATCH route.

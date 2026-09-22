@@ -334,6 +334,8 @@ func Factory(ctx context.Context, cfg cfg.Config, log log.Logger, root *httpserv
 ```
 Register via `router.HandleWith` if using dynamic factories.
 
+Handlers created with `httpserver.With` can implement `io.Closer`. The server calls `Close` after it stops serving requests. `Close` must block until cleanup completes and must be idempotent.
+
 ## Contributing
 
 Pull requests welcome. Please include tests for new functionality and keep changes minimal.

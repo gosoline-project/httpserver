@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"slices"
@@ -47,6 +48,7 @@ type HttpServer struct {
 	settings       *Settings
 	metricRecorder ServerMetricRecorder
 	healthy        atomic.Bool
+	handlerClosers []io.Closer
 }
 
 // NewServer creates a module factory for a named HTTP server using config-based settings.
@@ -142,7 +144,7 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 			return nil, fmt.Errorf("can not append metadata: %w", err)
 		}
 
-		return NewWithInterfaces(ctx, logger, router, tracingInstrumentor, settings, metricRecorder)
+		return newWithInterfaces(ctx, logger, router, tracingInstrumentor, settings, metricRecorder, definitions.handlerClosers)
 	}
 }
 
@@ -154,6 +156,18 @@ func NewWithInterfaces(
 	tracer tracing.Instrumentor,
 	settings *Settings,
 	metricRecorder ServerMetricRecorder,
+) (*HttpServer, error) {
+	return newWithInterfaces(ctx, logger, router, tracer, settings, metricRecorder, nil)
+}
+
+func newWithInterfaces(
+	ctx context.Context,
+	logger log.Logger,
+	router *gin.Engine,
+	tracer tracing.Instrumentor,
+	settings *Settings,
+	metricRecorder ServerMetricRecorder,
+	handlerClosers []io.Closer,
 ) (*HttpServer, error) {
 	connectionPressureManager := NewConnectionPressureManager(ctx, metricRecorder)
 
@@ -189,6 +203,7 @@ func NewWithInterfaces(
 		listener:       listener,
 		settings:       settings,
 		metricRecorder: metricRecorder,
+		handlerClosers: handlerClosers,
 	}
 
 	return apiServer, nil
@@ -214,7 +229,9 @@ func (s *HttpServer) Run(ctx context.Context) error {
 		return nil
 	})
 
-	if err := cfn.Wait(); err != nil {
+	runErr := cfn.Wait()
+	closeErr := s.closeHandlers()
+	if err := errors.Join(runErr, closeErr); err != nil {
 		s.logger.Error(ctx, "failed to run http server: %w", err)
 
 		return err
@@ -223,6 +240,18 @@ func (s *HttpServer) Run(ctx context.Context) error {
 	s.logger.Info(ctx, "leaving httpserver")
 
 	return nil
+}
+
+func (s *HttpServer) closeHandlers() error {
+	var errs []error
+
+	for _, closer := range s.handlerClosers {
+		if err := closer.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("failed to close handler %T: %w", closer, err))
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 func (s *HttpServer) waitForStop(ctx context.Context) error {
