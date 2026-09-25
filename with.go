@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"fmt"
+	"io"
 
 	"github.com/justtrackio/gosoline/pkg/cfg"
 	"github.com/justtrackio/gosoline/pkg/log"
@@ -18,6 +19,8 @@ type (
 )
 
 // With creates a registration factory from a handler factory and route registration function.
+// If the handler implements [io.Closer], the server calls Close after it stops serving requests.
+// Close implementations must block until cleanup completes and must be idempotent.
 func With[H any](handlerFactory HandlerFactory[H], register RegisterFunc[H]) RegisterFactoryFunc {
 	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *Router) (func(router *Router), error) {
 		var err error
@@ -25,6 +28,11 @@ func With[H any](handlerFactory HandlerFactory[H], register RegisterFunc[H]) Reg
 
 		if handler, err = handlerFactory(ctx, config, logger); err != nil {
 			return nil, fmt.Errorf("failed to create handler of type %T: %w", *new(H), err)
+		}
+		if handler != nil {
+			if closer, ok := any(handler).(io.Closer); ok {
+				router.addHandlerCloser(closer)
+			}
 		}
 
 		return func(router *Router) {
