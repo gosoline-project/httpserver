@@ -48,15 +48,15 @@ func (s *HttpServerTestSuite) SetupHttpServerRouter() httpserver.RouterFactory {
 		}
 		router.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
 
-		router.GET("/panic", func(ginCtx *gin.Context) {
+		router.Handle(http.MethodGet, "/panic", func(ginCtx *gin.Context) {
 			panic("something went wrong")
 		})
 
-		router.GET("/noop", func(ginCtx *gin.Context) {
+		router.Handle(http.MethodGet, "/noop", func(ginCtx *gin.Context) {
 			ginCtx.String(http.StatusOK, "{}")
 		})
 
-		router.POST("/echo", func(ginCtx *gin.Context) {
+		router.Handle(http.MethodPost, "/echo", func(ginCtx *gin.Context) {
 			body, err := io.ReadAll(ginCtx.Request.Body)
 			s.NoError(err)
 
@@ -65,7 +65,7 @@ func (s *HttpServerTestSuite) SetupHttpServerRouter() httpserver.RouterFactory {
 			ginCtx.Data(http.StatusOK, contentType, body)
 		})
 
-		router.POST("/reverse", func(ginCtx *gin.Context) {
+		router.Handle(http.MethodPost, "/reverse", func(ginCtx *gin.Context) {
 			body, err := io.ReadAll(ginCtx.Request.Body)
 			s.NoError(err)
 
@@ -74,7 +74,7 @@ func (s *HttpServerTestSuite) SetupHttpServerRouter() httpserver.RouterFactory {
 			ginCtx.Data(http.StatusOK, contentType, funk.Reverse(body))
 		})
 
-		router.GET("/typed-response", httpserver.BindN(func(context.Context) (typedHttpServerResponse, error) {
+		router.Handle(http.MethodGet, "/typed-response", httpserver.BindN(func(context.Context) (typedHttpServerResponse, error) {
 			return typedHttpServerResponse{Message: "hello from the server"}, nil
 		}))
 

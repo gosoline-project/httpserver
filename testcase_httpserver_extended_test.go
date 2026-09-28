@@ -39,11 +39,11 @@ func (s *HttpServerExtendedTestSuite) SetupSuite() []suite.Option {
 
 func (s *HttpServerExtendedTestSuite) SetupHttpServerRouter() httpserver.RouterFactory {
 	return func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
-		router.GET("/noop", func(ginCtx *gin.Context) {
+		router.Handle(http.MethodGet, "/noop", func(ginCtx *gin.Context) {
 			ginCtx.String(http.StatusOK, "{}")
 		})
 
-		router.POST("/echo", func(ginCtx *gin.Context) {
+		router.Handle(http.MethodPost, "/echo", func(ginCtx *gin.Context) {
 			body, err := io.ReadAll(ginCtx.Request.Body)
 			s.NoError(err)
 
@@ -52,7 +52,7 @@ func (s *HttpServerExtendedTestSuite) SetupHttpServerRouter() httpserver.RouterF
 			ginCtx.Data(http.StatusOK, contentType, body)
 		})
 
-		router.POST("/reverse", func(ginCtx *gin.Context) {
+		router.Handle(http.MethodPost, "/reverse", func(ginCtx *gin.Context) {
 			body, err := io.ReadAll(ginCtx.Request.Body)
 			s.NoError(err)
 

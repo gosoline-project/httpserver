@@ -17,10 +17,19 @@ func NewNetConn(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *NetConn {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &NetConn{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }
@@ -161,7 +170,7 @@ type NetConn_Read_Call struct {
 
 // Read is a helper method to define mock.On call
 //   - b []byte
-func (_e *NetConn_Expecter) Read(b interface{}) *NetConn_Read_Call {
+func (_e *NetConn_Expecter) Read(b any) *NetConn_Read_Call {
 	return &NetConn_Read_Call{Call: _e.mock.On("Read", b)}
 }
 
@@ -258,7 +267,7 @@ type NetConn_SetDeadline_Call struct {
 
 // SetDeadline is a helper method to define mock.On call
 //   - t time.Time
-func (_e *NetConn_Expecter) SetDeadline(t interface{}) *NetConn_SetDeadline_Call {
+func (_e *NetConn_Expecter) SetDeadline(t any) *NetConn_SetDeadline_Call {
 	return &NetConn_SetDeadline_Call{Call: _e.mock.On("SetDeadline", t)}
 }
 
@@ -309,7 +318,7 @@ type NetConn_SetReadDeadline_Call struct {
 
 // SetReadDeadline is a helper method to define mock.On call
 //   - t time.Time
-func (_e *NetConn_Expecter) SetReadDeadline(t interface{}) *NetConn_SetReadDeadline_Call {
+func (_e *NetConn_Expecter) SetReadDeadline(t any) *NetConn_SetReadDeadline_Call {
 	return &NetConn_SetReadDeadline_Call{Call: _e.mock.On("SetReadDeadline", t)}
 }
 
@@ -360,7 +369,7 @@ type NetConn_SetWriteDeadline_Call struct {
 
 // SetWriteDeadline is a helper method to define mock.On call
 //   - t time.Time
-func (_e *NetConn_Expecter) SetWriteDeadline(t interface{}) *NetConn_SetWriteDeadline_Call {
+func (_e *NetConn_Expecter) SetWriteDeadline(t any) *NetConn_SetWriteDeadline_Call {
 	return &NetConn_SetWriteDeadline_Call{Call: _e.mock.On("SetWriteDeadline", t)}
 }
 
@@ -420,7 +429,7 @@ type NetConn_Write_Call struct {
 
 // Write is a helper method to define mock.On call
 //   - b []byte
-func (_e *NetConn_Expecter) Write(b interface{}) *NetConn_Write_Call {
+func (_e *NetConn_Expecter) Write(b any) *NetConn_Write_Call {
 	return &NetConn_Write_Call{Call: _e.mock.On("Write", b)}
 }
 

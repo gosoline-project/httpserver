@@ -34,9 +34,9 @@ func (s *CompressedTestSuite) SetupHttpServerRouter() moduleHttpserver.RouterFac
 			return moduleHttpserver.NewJsonResponse(*input), nil
 		}, binding.JSON)
 
-		router.POST("/echo", handler)
-		router.POST("/uncompressed", handler)
-		router.POST("/this-path-uses-no-compression-to-echo", handler)
+		router.Handle(http.MethodPost, "/echo", handler)
+		router.Handle(http.MethodPost, "/uncompressed", handler)
+		router.Handle(http.MethodPost, "/this-path-uses-no-compression-to-echo", handler)
 
 		return nil
 	}

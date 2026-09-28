@@ -16,10 +16,19 @@ func NewModifier(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *Modifier {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &Modifier{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }
@@ -62,7 +71,7 @@ type Modifier_Struct_Call struct {
 // Struct is a helper method to define mock.On call
 //   - ctx context.Context
 //   - v any
-func (_e *Modifier_Expecter) Struct(ctx interface{}, v interface{}) *Modifier_Struct_Call {
+func (_e *Modifier_Expecter) Struct(ctx any, v any) *Modifier_Struct_Call {
 	return &Modifier_Struct_Call{Call: _e.mock.On("Struct", ctx, v)}
 }
 

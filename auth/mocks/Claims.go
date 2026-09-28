@@ -15,10 +15,19 @@ func NewClaims(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *Claims {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &Claims{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }
@@ -419,7 +428,7 @@ type Claims_SetRegisteredClaims_Call struct {
 
 // SetRegisteredClaims is a helper method to define mock.On call
 //   - registeredClaims jwt.RegisteredClaims
-func (_e *Claims_Expecter) SetRegisteredClaims(registeredClaims interface{}) *Claims_SetRegisteredClaims_Call {
+func (_e *Claims_Expecter) SetRegisteredClaims(registeredClaims any) *Claims_SetRegisteredClaims_Call {
 	return &Claims_SetRegisteredClaims_Call{Call: _e.mock.On("SetRegisteredClaims", registeredClaims)}
 }
 

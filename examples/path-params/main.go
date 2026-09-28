@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gosoline-project/httpserver"
@@ -11,7 +12,7 @@ import (
 
 func main() {
 	httpserver.RunDefaultServer(func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
-		router.GET("/hello/:name", func(ginCtx *gin.Context) {
+		router.Handle(http.MethodGet, "/hello/:name", func(ginCtx *gin.Context) {
 			name := ginCtx.Param("name")
 			if _, err := ginCtx.Writer.WriteString("Hello, " + name); err != nil {
 				ginErr := ginCtx.Error(err)

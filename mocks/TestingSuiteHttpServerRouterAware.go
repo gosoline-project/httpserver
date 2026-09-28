@@ -15,10 +15,19 @@ func NewTestingSuiteHttpServerRouterAware(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *TestingSuiteHttpServerRouterAware {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &TestingSuiteHttpServerRouterAware{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }

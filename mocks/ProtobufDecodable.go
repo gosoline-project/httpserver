@@ -15,10 +15,19 @@ func NewProtobufDecodable(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *ProtobufDecodable {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &ProtobufDecodable{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }
@@ -72,8 +81,8 @@ func (_c *ProtobufDecodable_EmptyMessage_Call) Run(run func()) *ProtobufDecodabl
 	return _c
 }
 
-func (_c *ProtobufDecodable_EmptyMessage_Call) Return(v proto.Message) *ProtobufDecodable_EmptyMessage_Call {
-	_c.Call.Return(v)
+func (_c *ProtobufDecodable_EmptyMessage_Call) Return(message proto.Message) *ProtobufDecodable_EmptyMessage_Call {
+	_c.Call.Return(message)
 	return _c
 }
 
@@ -106,7 +115,7 @@ type ProtobufDecodable_FromMessage_Call struct {
 
 // FromMessage is a helper method to define mock.On call
 //   - message proto.Message
-func (_e *ProtobufDecodable_Expecter) FromMessage(message interface{}) *ProtobufDecodable_FromMessage_Call {
+func (_e *ProtobufDecodable_Expecter) FromMessage(message any) *ProtobufDecodable_FromMessage_Call {
 	return &ProtobufDecodable_FromMessage_Call{Call: _e.mock.On("FromMessage", message)}
 }
 

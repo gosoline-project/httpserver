@@ -174,12 +174,12 @@ func TestNewServerUsesConfiguredResponseNegotiator(t *testing.T) {
 }
 
 func serverOptionRouterFactory(_ context.Context, _ cfg.Config, _ log.Logger, router *Router) error {
-	router.GET("/result", BindN(func(context.Context) (serverOptionResponse, error) {
+	router.GET("/result", func(context.Context, *http.Request, *struct{}) (serverOptionResponse, error) {
 		return serverOptionResponse{Message: "hello"}, nil
-	}))
-	router.GET("/error", BindN(func(context.Context) (serverOptionResponse, error) {
+	})
+	router.GET("/error", func(context.Context, *http.Request, *struct{}) (serverOptionResponse, error) {
 		return serverOptionResponse{}, errors.New("server error")
-	}))
+	})
 
 	return nil
 }

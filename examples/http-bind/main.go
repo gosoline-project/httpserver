@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/gosoline-project/httpserver"
 	"github.com/justtrackio/gosoline/pkg/cfg"
@@ -11,11 +12,11 @@ import (
 
 func main() {
 	httpserver.RunDefaultServer(func(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
-		router.HandleWith(httpserver.With(NewHandler, func(router *httpserver.Router, s *Handler) {
-			router.POST("/a", httpserver.Bind(s.HandleA))
-			router.GET("/b", httpserver.Bind(s.HandleB))
-			router.GET("/err", httpserver.BindN(s.HandleErr))
-		}))
+		router.HandleWith(NewHandler, func(router *httpserver.Router, s *Handler) {
+			router.POST("/a", s.HandleA)
+			router.GET("/b", s.HandleB)
+			router.Handle(http.MethodGet, "/err", httpserver.BindN(s.HandleErr))
+		})
 
 		return nil
 	})
@@ -34,14 +35,14 @@ func NewHandler(ctx context.Context, config cfg.Config, logger log.Logger) (*Han
 	return &Handler{}, nil
 }
 
-func (r *Handler) HandleA(ctx context.Context, input *InputA) (map[string]any, error) {
+func (r *Handler) HandleA(ctx context.Context, _ *http.Request, input *InputA) (map[string]any, error) {
 	return map[string]any{
 		"message": "Hello from A",
 		"input":   *input,
 	}, nil
 }
 
-func (r *Handler) HandleB(ctx context.Context, input *InputB) (map[string]any, error) {
+func (r *Handler) HandleB(ctx context.Context, _ *http.Request, input *InputB) (map[string]any, error) {
 	return map[string]any{
 		"message": "Hello from B",
 		"input":   *input,

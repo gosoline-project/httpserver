@@ -16,10 +16,19 @@ func NewServerMetricRecorder(t interface {
 	mock.TestingT
 	Cleanup(func())
 }) *ServerMetricRecorder {
+	if helper, ok := t.(interface{ Helper() }); ok {
+		helper.Helper()
+	}
+
 	mock := &ServerMetricRecorder{}
 	mock.Mock.Test(t)
 
-	t.Cleanup(func() { mock.AssertExpectations(t) })
+	t.Cleanup(func() {
+		if helper, ok := t.(interface{ Helper() }); ok {
+			helper.Helper()
+		}
+		mock.AssertExpectations(t)
+	})
 
 	return mock
 }
@@ -61,7 +70,7 @@ type ServerMetricRecorder_Run_Call struct {
 
 // Run is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *ServerMetricRecorder_Expecter) Run(ctx interface{}) *ServerMetricRecorder_Run_Call {
+func (_e *ServerMetricRecorder_Expecter) Run(ctx any) *ServerMetricRecorder_Run_Call {
 	return &ServerMetricRecorder_Run_Call{Call: _e.mock.On("Run", ctx)}
 }
 
@@ -101,7 +110,7 @@ type ServerMetricRecorder_TrackConnectionClosed_Call struct {
 
 // TrackConnectionClosed is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *ServerMetricRecorder_Expecter) TrackConnectionClosed(ctx interface{}) *ServerMetricRecorder_TrackConnectionClosed_Call {
+func (_e *ServerMetricRecorder_Expecter) TrackConnectionClosed(ctx any) *ServerMetricRecorder_TrackConnectionClosed_Call {
 	return &ServerMetricRecorder_TrackConnectionClosed_Call{Call: _e.mock.On("TrackConnectionClosed", ctx)}
 }
 
@@ -141,7 +150,7 @@ type ServerMetricRecorder_TrackConnectionOpened_Call struct {
 
 // TrackConnectionOpened is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *ServerMetricRecorder_Expecter) TrackConnectionOpened(ctx interface{}) *ServerMetricRecorder_TrackConnectionOpened_Call {
+func (_e *ServerMetricRecorder_Expecter) TrackConnectionOpened(ctx any) *ServerMetricRecorder_TrackConnectionOpened_Call {
 	return &ServerMetricRecorder_TrackConnectionOpened_Call{Call: _e.mock.On("TrackConnectionOpened", ctx)}
 }
 
@@ -181,7 +190,7 @@ type ServerMetricRecorder_TrackRequestCompleted_Call struct {
 
 // TrackRequestCompleted is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *ServerMetricRecorder_Expecter) TrackRequestCompleted(ctx interface{}) *ServerMetricRecorder_TrackRequestCompleted_Call {
+func (_e *ServerMetricRecorder_Expecter) TrackRequestCompleted(ctx any) *ServerMetricRecorder_TrackRequestCompleted_Call {
 	return &ServerMetricRecorder_TrackRequestCompleted_Call{Call: _e.mock.On("TrackRequestCompleted", ctx)}
 }
 
@@ -221,7 +230,7 @@ type ServerMetricRecorder_TrackRequestStarted_Call struct {
 
 // TrackRequestStarted is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *ServerMetricRecorder_Expecter) TrackRequestStarted(ctx interface{}) *ServerMetricRecorder_TrackRequestStarted_Call {
+func (_e *ServerMetricRecorder_Expecter) TrackRequestStarted(ctx any) *ServerMetricRecorder_TrackRequestStarted_Call {
 	return &ServerMetricRecorder_TrackRequestStarted_Call{Call: _e.mock.On("TrackRequestStarted", ctx)}
 }
 
