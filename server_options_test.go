@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type serverOptionMiddlewareContextKey struct{}
+
 type testResponseNegotiator struct{}
 
 func (*testResponseNegotiator) Render(*http.Request, any) (Response, error) {
@@ -65,6 +67,12 @@ func TestWithResponseNegotiatorReturnsErrorForNil(t *testing.T) {
 	_, err := newServerOptions(WithResponseNegotiator(nil))
 
 	require.EqualError(t, err, "could not apply server option: response negotiator is required")
+}
+
+func TestWithMiddlewareReturnsErrorForNil(t *testing.T) {
+	_, err := newServerOptions(WithMiddleware(nil))
+
+	require.EqualError(t, err, "could not apply server option: middleware is required")
 }
 
 func TestNewServerOptionsReturnsErrorForNilOption(t *testing.T) {
@@ -234,6 +242,59 @@ func serveServerOptionsTestRequest(t *testing.T, server *HttpServer, accept stri
 	server.server.Handler.ServeHTTP(recorder, request)
 
 	return recorder
+}
+
+func TestNewServerWithSettingsAppliesMiddleware(t *testing.T) {
+	var events []string
+	middleware := func(name string) func(http.Handler) http.Handler {
+		return func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				events = append(events, name+"-enter")
+				if name == "first" {
+					r = r.WithContext(context.WithValue(r.Context(), serverOptionMiddlewareContextKey{}, "from middleware"))
+				}
+
+				next.ServeHTTP(w, r)
+				events = append(events, name+"-exit")
+			})
+		}
+	}
+	routerFactory := func(_ context.Context, _ cfg.Config, _ log.Logger, router *Router) error {
+		router.GET("/middleware", BindN(func(ctx context.Context) (serverOptionResponse, error) {
+			message, ok := ctx.Value(serverOptionMiddlewareContextKey{}).(string)
+			if !ok {
+				return serverOptionResponse{}, errors.New("middleware context missing")
+			}
+
+			return serverOptionResponse{Message: message}, nil
+		}))
+
+		return nil
+	}
+
+	server := buildServerForOptionsTest(t, NewServerWithSettings(
+		t.Context(),
+		"test",
+		routerFactory,
+		&Settings{
+			Port: "0",
+			Mode: gin.TestMode,
+			Compression: CompressionSettings{
+				Level: "none",
+			},
+		},
+		WithMiddleware(middleware("first")),
+		WithMiddleware(middleware("second")),
+	))
+
+	recorder := httptest.NewRecorder()
+	request := httptest.NewRequest(http.MethodGet, "/middleware", http.NoBody)
+	request.Header.Set(HeaderAccept, ContentTypeApplicationJson)
+	server.server.Handler.ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.JSONEq(t, `{"message":"from middleware"}`, recorder.Body.String())
+	assert.Equal(t, []string{"first-enter", "second-enter", "second-exit", "first-exit"}, events)
 }
 
 func TestNewServerOptionsKeepsErrorHandlersIndependent(t *testing.T) {

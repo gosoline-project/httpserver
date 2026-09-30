@@ -3,6 +3,7 @@ package httpserver
 import (
 	"errors"
 	"fmt"
+	"net/http"
 )
 
 // ServerOption configures a server during construction.
@@ -14,6 +15,7 @@ type serverOptions struct {
 	responseNegotiator ResponseNegotiator
 	errorMappers       []ErrorMapper
 	errorHandler       ErrorHandler
+	middlewares        []func(http.Handler) http.Handler
 }
 
 // WithResponseNegotiator configures the response negotiator used by the server.
@@ -50,6 +52,20 @@ func WithErrorMapper(mapper ErrorMapper) ServerOption {
 		}
 
 		options.errorMappers = append(options.errorMappers, mapper)
+
+		return nil
+	}
+}
+
+// WithMiddleware configures a standard HTTP middleware for the server. The first
+// configured middleware handles requests first; middleware unwinds in reverse order.
+func WithMiddleware(middleware func(http.Handler) http.Handler) ServerOption {
+	return func(options *serverOptions) error {
+		if middleware == nil {
+			return errors.New("middleware is required")
+		}
+
+		options.middlewares = append(options.middlewares, middleware)
 
 		return nil
 	}

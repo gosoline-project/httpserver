@@ -144,7 +144,7 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 			return nil, fmt.Errorf("can not append metadata: %w", err)
 		}
 
-		return newWithInterfaces(ctx, logger, router, tracingInstrumentor, settings, metricRecorder, definitions.handlerClosers)
+		return newWithInterfaces(ctx, logger, router, tracingInstrumentor, settings, metricRecorder, definitions.handlerClosers, serverOpts.middlewares...)
 	}
 }
 
@@ -168,12 +168,18 @@ func newWithInterfaces(
 	settings *Settings,
 	metricRecorder ServerMetricRecorder,
 	handlerClosers []io.Closer,
+	middlewares ...func(http.Handler) http.Handler,
 ) (*HttpServer, error) {
 	connectionPressureManager := NewConnectionPressureManager(ctx, metricRecorder)
 
+	handler := tracer.HttpHandler(router)
+	for i := len(middlewares) - 1; i >= 0; i-- {
+		handler = middlewares[i](handler)
+	}
+
 	server := &http.Server{
 		Addr:         ":" + settings.Port,
-		Handler:      tracer.HttpHandler(router),
+		Handler:      handler,
 		ReadTimeout:  settings.Timeout.Read,
 		WriteTimeout: settings.Timeout.Write,
 		IdleTimeout:  settings.Timeout.Idle,

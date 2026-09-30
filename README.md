@@ -291,6 +291,23 @@ r.Use(httpserver.ErrorMiddleware())
 r.Use(httpserver.RecoveryWithSentry(logger))
 ```
 
+Use `WithMiddleware` for standard-library HTTP middleware:
+
+```go
+factory := httpserver.NewServer(
+    "default",
+    Factory,
+    httpserver.WithMiddleware(func(next http.Handler) http.Handler {
+        return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+            w.Header().Set("X-Service", "example")
+            next.ServeHTTP(w, r)
+        })
+    }),
+)
+```
+
+The middleware wraps the complete server handler, including tracing and health routes. Multiple middleware options run in the supplied order. Each middleware can replace the request context or response writer before Gin receives the request.
+
 ## Testing
 
 Use the included helpers for unit-style handler tests:
