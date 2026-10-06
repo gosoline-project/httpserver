@@ -27,7 +27,7 @@ const (
 // NewMetricMiddleware creates request metrics middleware and a setup hook for route defaults.
 func NewMetricMiddleware(name string, metricRecorder ServerMetricRecorder) (middleware gin.HandlerFunc, setupHandler func(definitions []Definition)) {
 	// writer without any defaults until we initialize some defaults and overwrite it
-	writer := metric.NewWriter()
+	writer := metric.NewWriter("")
 
 	middleware = func(ginCtx *gin.Context) {
 		MetricMiddleware(name, ginCtx, writer, metricRecorder)
@@ -35,7 +35,7 @@ func NewMetricMiddleware(name string, metricRecorder ServerMetricRecorder) (midd
 
 	setupHandler = func(definitions []Definition) {
 		defaults := GetMetricMiddlewareDefaults(name, definitions...)
-		writer = metric.NewWriter(defaults...)
+		writer = metric.NewWriter("", defaults...)
 	}
 
 	return middleware, setupHandler

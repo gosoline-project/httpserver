@@ -40,7 +40,7 @@ type serverMetricRecorder struct {
 func newServerMetricRecorder(name string) ServerMetricRecorder {
 	defaults := getMetricRecorderDefaults(name)
 
-	return newServerMetricRecorderWithInterfaces(name, clock.Provider, metric.NewWriter(defaults...), concurrencyMetricSampleInterval)
+	return newServerMetricRecorderWithInterfaces(name, clock.Provider, metric.NewWriter("", defaults...), concurrencyMetricSampleInterval)
 }
 
 func newServerMetricRecorderWithInterfaces(name string, clock clock.Clock, writer metric.Writer, sampleInterval time.Duration) ServerMetricRecorder {
