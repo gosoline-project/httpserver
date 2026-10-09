@@ -33,7 +33,7 @@ linters:
     - gocritic # Provides diagnostics that check for bugs, performance and style issues.
     - godox # Tool for detection of FIXME, TODO and other comment keywords.
     - govet # Vet examines Go source code and reports suspicious constructs, such as Printf calls whose arguments do not align with the format string.
-    - iferrinline # Flags `err := foo()` followed by `if err != nil` that can be inlined into the if-init clause.
+    - justtrack # Runs the project-specific analyzers.
     - ineffassign # Detects when assignments to existing variables are not used.
     - lll # Reports long lines.
     - misspell # Finds commonly misspelled English words in comments.
@@ -56,9 +56,9 @@ linters:
 
   settings:
     custom:
-      iferrinline:
+      justtrack:
         type: module
-        description: reports err assignments followed by `if err != nil` that can be inlined
+        description: runs the justtrack company rules
         original-url: github.com/justtrackio/go-linters
 
     errcheck:
