@@ -11,6 +11,16 @@ A lightweight, opinionated HTTP server helper library built on top of [gin](http
 - Simple test helpers and suite integration.
 - Composable router factories for modular service assembly.
 
+## HTTP Metrics
+
+The metric middleware emits metrics in the `http.server` namespace:
+
+- `request.duration` is a histogram recorded in milliseconds; the Gosoline metric writer exports it in seconds. Its observation count is the request count, with `name`, `route`, `request.method`, and `response.status_code` dimensions.
+- `rejected.requests` is a counter with `name`, `route`, and `request.method` dimensions. Registered routes receive a zero default.
+- `active_request.count` and `connection.count` are gauges with the `name` dimension.
+
+These replace the legacy request-count, response-time, and status-class metric series and their `Method`, `Path`, and `ServerName` dimensions.
+
 ## Installation
 
 ```bash
