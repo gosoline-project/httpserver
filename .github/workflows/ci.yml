@@ -51,6 +51,10 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+      - name: Set up go-linters
+        uses: jdx/mise-action@v2
+        with:
+          install_args: github:justtrackio/go-linters
 
       - name: Set up Go
         uses: actions/setup-go@v6
@@ -58,11 +62,9 @@ jobs:
           go-version-file: go.mod
           cache: true
 
-      - name: Install golangci-lint
+      - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.10.1
-          install-only: true
-
-      - name: Run custom golangci-lint
-        run: ./bin/custom-gcl run
+          install-mode: none
+          only-new-issues: false
+          verify: false
