@@ -4,5 +4,5 @@ disable_tools = ["golangci-lint"]
 [tools]
 go = "1.25.7"
 gofumpt = "0.9.2"
-"github:justtrackio/go-linters" = "0.4.1"
+"github:justtrackio/go-linters" = "0.4.2"
 mockery = "3.7.0"
