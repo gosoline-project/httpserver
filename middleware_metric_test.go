@@ -17,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestMetricMiddleware_WritesRejectedRequestMetrics(t *testing.T) {
+func TestMetricMiddleware_WritesCanonicalRequestMetrics(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	writes := make([]metric.Data, 0)
 	writer := metricMocks.NewWriter(t)
@@ -45,16 +45,25 @@ func TestMetricMiddleware_WritesRejectedRequestMetrics(t *testing.T) {
 	require.Equal(t, http.StatusTooManyRequests, response.Code)
 	require.Len(t, writes, 2)
 
+	durationMetrics := writes[0]
+	require.Len(t, durationMetrics, 1)
+	assert.Equal(t, httpserver.MetricHttpRequestDuration, durationMetrics[0].MetricName)
+	assert.Equal(t, metric.Dimensions{
+		"name":                 "api",
+		"route":                "/widgets/:id",
+		"request.method":       http.MethodGet,
+		"response.status_code": "429",
+	}, durationMetrics[0].Dimensions)
+	assert.Equal(t, metric.UnitMillisecondsAverage, durationMetrics[0].Unit)
+	assert.Equal(t, metric.KindHistogram.Build(), durationMetrics[0].Kind)
+
 	rejectedMetrics := writes[1]
-	require.Len(t, rejectedMetrics, 2)
+	require.Len(t, rejectedMetrics, 1)
 	assertRejectedMetric(t, rejectedMetrics[0], metric.Dimensions{
-		"Method":     http.MethodGet,
-		"Path":       "/widgets/:id",
-		"ServerName": "api",
-	}, metric.KindDefault)
-	assertRejectedMetric(t, rejectedMetrics[1], metric.Dimensions{
-		"ServerName": "api",
-	}, metric.KindTotal)
+		"name":           "api",
+		"route":          "/widgets/:id",
+		"request.method": http.MethodGet,
+	})
 }
 
 func TestGetMetricMiddlewareDefaults_IncludesRejectedRequestMetrics(t *testing.T) {
@@ -66,26 +75,15 @@ func TestGetMetricMiddlewareDefaults_IncludesRejectedRequestMetrics(t *testing.T
 
 	defaults := httpserver.GetMetricMiddlewareDefaults("api", definition)
 
-	require.Len(t, defaults, 4)
-	assertDefaultMetric(t, defaults[0], httpserver.MetricHttpRequestCountPerRoute, metric.Dimensions{
-		"Method":     http.MethodGet,
-		"Path":       "/widgets/:id",
-		"ServerName": "api",
-	}, metric.KindDefault)
-	assertDefaultMetric(t, defaults[1], httpserver.MetricHttpRequestsRejected, metric.Dimensions{
-		"Method":     http.MethodGet,
-		"Path":       "/widgets/:id",
-		"ServerName": "api",
-	}, metric.KindDefault)
-	assertDefaultMetric(t, defaults[2], httpserver.MetricHttpRequestsRejected, metric.Dimensions{
-		"ServerName": "api",
-	}, metric.KindTotal)
-	assertDefaultMetric(t, defaults[3], httpserver.MetricHttpRequestCount, metric.Dimensions{
-		"ServerName": "api",
-	}, metric.KindDefault)
+	require.Len(t, defaults, 1)
+	assertDefaultMetric(t, defaults[0], httpserver.MetricHttpRequestsRejected, metric.Dimensions{
+		"name":           "api",
+		"route":          "/widgets/:id",
+		"request.method": http.MethodGet,
+	}, metric.KindCounter.Build())
 }
 
-func assertRejectedMetric(t *testing.T, datum *metric.Datum, dimensions metric.Dimensions, kind metric.Kind) {
+func assertRejectedMetric(t *testing.T, datum *metric.Datum, dimensions metric.Dimensions) {
 	t.Helper()
 
 	assert.Equal(t, metric.PriorityHigh, datum.Priority)
@@ -93,7 +91,7 @@ func assertRejectedMetric(t *testing.T, datum *metric.Datum, dimensions metric.D
 	assert.Equal(t, metric.UnitCount, datum.Unit)
 	assert.Equal(t, dimensions, datum.Dimensions)
 	assert.Equal(t, 1.0, datum.Value)
-	assert.Equal(t, kind, datum.Kind)
+	assert.Equal(t, metric.KindCounter.Build(), datum.Kind)
 }
 
 func assertDefaultMetric(t *testing.T, datum *metric.Datum, metricName string, dimensions metric.Dimensions, kind metric.Kind) {
