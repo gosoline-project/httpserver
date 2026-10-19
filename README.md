@@ -15,11 +15,15 @@ A lightweight, opinionated HTTP server helper library built on top of [gin](http
 
 The metric middleware emits metrics in the `http.server` namespace:
 
-- `request.duration` is a histogram recorded in milliseconds; the Gosoline metric writer exports it in seconds. Its observation count is the request count, with `name`, `route`, `request.method`, and `response.status_code` dimensions.
-- `rejected.requests` is a counter with `name`, `route`, and `request.method` dimensions. Registered routes receive a zero default.
+- `requests` is a high-priority `UnitCount` counter for the server total, keyed only by `name`, with a zero default.
+- `routed.requests` is a high-priority `UnitCount` counter for each route and method, keyed by `name`, `route`, and `request.method`, with a zero default for each application route definition.
+- `request.duration` is a histogram recorded in milliseconds; the Gosoline metric writer exports it in seconds. It records latency with `name`, `route`, `request.method`, and the full numeric `response.status_code`.
+- `rejected.requests` is a counter with `name`, `route`, and `request.method` dimensions. Application route definitions receive a zero default.
 - `active_request.count` and `connection.count` are gauges with the `name` dimension.
 
-These replace the legacy request-count, response-time, and status-class metric series and their `Method`, `Path`, and `ServerName` dimensions.
+The request counters are recorded once for every matched request when the metric middleware unwinds, including requests aborted by downstream overload or chaos middleware. Unmatched routes remain excluded; matched health routes are counted, but `/health` has no zero default before its first request because it is registered outside the application route definitions. Neither counter has a status dimension, and the duration histogram remains a separate latency metric.
+
+The canonical v2 request counters preserve separate server and route counts under new names. The legacy dimensions `Method`, `Path`, and `ServerName` map to `request.method`, `route`, and `name`; status-class metric series are represented by the full status code on the duration histogram.
 
 ## Installation
 

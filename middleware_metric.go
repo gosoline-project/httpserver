@@ -5,16 +5,18 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/justtrackio/gosoline/pkg/funk"
 	"github.com/justtrackio/gosoline/pkg/metric"
 )
 
 const (
-	// MetricHttpRequestDuration records request duration as a histogram; its observation count is
-	// the request count and its dimensions distinguish routes, methods and response statuses.
+	// MetricHttpRequestDuration records an HTTP server request's latency with response status.
+	// Separate counters report request totals without a response-status dimension.
 	MetricHttpRequestDuration = "request.duration"
 	// MetricHttpRequestsRejected is the count of requests rejected before handling.
 	MetricHttpRequestsRejected = "rejected.requests"
+
+	metricRequests      = "requests"
+	metricRouteRequests = "routed.requests"
 
 	dimensionServerName = "name"
 	dimensionRoute      = "route"
@@ -49,7 +51,7 @@ func MetricMiddleware(name string, ginCtx *gin.Context, writer metric.Writer, me
 
 	path := ginCtx.FullPath()
 	if path == "" {
-		// the path was not found, so no need to print anything
+		// The path was not found, so no request metrics are recorded.
 		return
 	}
 
@@ -60,57 +62,100 @@ func MetricMiddleware(name string, ginCtx *gin.Context, writer metric.Writer, me
 
 	requestTimeNano := time.Since(start)
 	requestTimeMillisecond := float64(requestTimeNano) / float64(time.Millisecond)
-
 	routeDimensions := metric.Dimensions{
 		dimensionServerName: name,
 		dimensionRoute:      path,
 		dimensionMethod:     method,
-		dimensionStatusCode: strconv.Itoa(ginCtx.Writer.Status()),
 	}
 
-	writer.Write(ginCtx.Request.Context(), metric.Data{
-		{
+	data := make(metric.Data, 0, 4)
+	data = append(data,
+		&metric.Datum{
 			Priority:   metric.PriorityHigh,
 			MetricName: MetricHttpRequestDuration,
-			Dimensions: routeDimensions,
-			Unit:       metric.UnitMillisecondsAverage,
-			Value:      requestTimeMillisecond,
-			Kind:       metric.KindHistogram.Build(),
-		},
-	})
-
-	if WasRequestRejected(ginCtx.Request) {
-		writer.Write(ginCtx.Request.Context(), metric.Data{
-			{
-				Priority:   metric.PriorityHigh,
-				MetricName: MetricHttpRequestsRejected,
-				Dimensions: metric.Dimensions{
-					dimensionServerName: name,
-					dimensionRoute:      path,
-					dimensionMethod:     method,
-				},
-				Unit:  metric.UnitCount,
-				Value: 1.0,
-				Kind:  metric.KindCounter.Build(),
-			},
-		})
-	}
-}
-
-// GetMetricMiddlewareDefaults returns zero-valued rejected-request counters for registered routes.
-func GetMetricMiddlewareDefaults(name string, definitions ...Definition) metric.Data {
-	return funk.Map(definitions, func(definition Definition) *metric.Datum {
-		return &metric.Datum{
-			Priority:   metric.PriorityHigh,
-			MetricName: MetricHttpRequestsRejected,
 			Dimensions: metric.Dimensions{
 				dimensionServerName: name,
-				dimensionRoute:      definition.getAbsolutePath(),
-				dimensionMethod:     definition.HttpMethod,
+				dimensionRoute:      path,
+				dimensionMethod:     method,
+				dimensionStatusCode: strconv.Itoa(ginCtx.Writer.Status()),
+			},
+			Unit:  metric.UnitMillisecondsAverage,
+			Value: requestTimeMillisecond,
+			Kind:  metric.KindHistogram.Build(),
+		},
+		&metric.Datum{
+			Priority:   metric.PriorityHigh,
+			MetricName: metricRequests,
+			Dimensions: metric.Dimensions{
+				dimensionServerName: name,
 			},
 			Unit:  metric.UnitCount,
-			Value: 0.0,
+			Value: 1.0,
 			Kind:  metric.KindCounter.Build(),
-		}
+		},
+		&metric.Datum{
+			Priority:   metric.PriorityHigh,
+			MetricName: metricRouteRequests,
+			Dimensions: routeDimensions,
+			Unit:       metric.UnitCount,
+			Value:      1.0,
+			Kind:       metric.KindCounter.Build(),
+		},
+	)
+
+	if WasRequestRejected(ginCtx.Request) {
+		data = append(data, &metric.Datum{
+			Priority:   metric.PriorityHigh,
+			MetricName: MetricHttpRequestsRejected,
+			Dimensions: routeDimensions,
+			Unit:       metric.UnitCount,
+			Value:      1.0,
+			Kind:       metric.KindCounter.Build(),
+		})
+	}
+
+	writer.Write(ginCtx.Request.Context(), data)
+}
+
+// GetMetricMiddlewareDefaults returns zero-valued request and rejected-request counters.
+func GetMetricMiddlewareDefaults(name string, definitions ...Definition) metric.Data {
+	defaults := make(metric.Data, 0, 1+2*len(definitions))
+	defaults = append(defaults, &metric.Datum{
+		Priority:   metric.PriorityHigh,
+		MetricName: metricRequests,
+		Dimensions: metric.Dimensions{
+			dimensionServerName: name,
+		},
+		Unit:  metric.UnitCount,
+		Value: 0.0,
+		Kind:  metric.KindCounter.Build(),
 	})
+
+	for _, definition := range definitions {
+		routeDimensions := metric.Dimensions{
+			dimensionServerName: name,
+			dimensionRoute:      definition.getAbsolutePath(),
+			dimensionMethod:     definition.HttpMethod,
+		}
+		defaults = append(defaults,
+			&metric.Datum{
+				Priority:   metric.PriorityHigh,
+				MetricName: metricRouteRequests,
+				Dimensions: routeDimensions,
+				Unit:       metric.UnitCount,
+				Value:      0.0,
+				Kind:       metric.KindCounter.Build(),
+			},
+			&metric.Datum{
+				Priority:   metric.PriorityHigh,
+				MetricName: MetricHttpRequestsRejected,
+				Dimensions: routeDimensions,
+				Unit:       metric.UnitCount,
+				Value:      0.0,
+				Kind:       metric.KindCounter.Build(),
+			},
+		)
+	}
+
+	return defaults
 }
