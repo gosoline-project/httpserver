@@ -37,7 +37,7 @@ func TestMetricMiddlewareEmitsCanonicalOtelMetrics(t *testing.T) {
 			defer observedCountersMutex.Unlock()
 			for _, datum := range batch {
 				switch datum.MetricName {
-				case "requests", "routed.requests", MetricHttpRequestsRejected:
+				case "requests", "routed.requests", "responses", "routed.responses", MetricHttpRequestsRejected:
 					observedCounters = append(observedCounters, *datum)
 				}
 			}
@@ -48,6 +48,7 @@ func TestMetricMiddlewareEmitsCanonicalOtelMetrics(t *testing.T) {
 		{Group: &Router{}, HttpMethod: http.MethodGet, RelativePath: "/auth"},
 		{Group: &Router{}, HttpMethod: http.MethodGet, RelativePath: "/chaos"},
 		{Group: &Router{}, HttpMethod: http.MethodGet, RelativePath: "/idle"},
+		{Group: &Router{}, HttpMethod: http.MethodGet, RelativePath: "/server-error"},
 	}
 	writer.Write(t.Context(), GetMetricMiddlewareDefaults("api", definitions...))
 
@@ -86,6 +87,9 @@ func TestMetricMiddlewareEmitsCanonicalOtelMetrics(t *testing.T) {
 		},
 	}), func(c *gin.Context) {})
 	router.GET("/idle", func(c *gin.Context) {})
+	router.GET("/server-error", func(c *gin.Context) {
+		c.AbortWithStatus(599)
+	})
 
 	firstResponse := httptest.NewRecorder()
 	firstDone := make(chan struct{})
@@ -119,6 +123,9 @@ func TestMetricMiddlewareEmitsCanonicalOtelMetrics(t *testing.T) {
 	healthResponse := httptest.NewRecorder()
 	router.ServeHTTP(healthResponse, httptest.NewRequest(http.MethodGet, "/health", http.NoBody))
 	require.Equal(t, http.StatusOK, healthResponse.Code)
+	serverErrorResponse := httptest.NewRecorder()
+	router.ServeHTTP(serverErrorResponse, httptest.NewRequest(http.MethodGet, "/server-error", http.NoBody))
+	require.Equal(t, 599, serverErrorResponse.Code)
 	unmatchedResponse := httptest.NewRecorder()
 	router.ServeHTTP(unmatchedResponse, httptest.NewRequest(http.MethodGet, "/missing", http.NoBody))
 	require.Equal(t, http.StatusNotFound, unmatchedResponse.Code)
@@ -141,15 +148,15 @@ func TestMetricMiddlewareEmitsCanonicalOtelMetrics(t *testing.T) {
 			metrics[exportedMetric.Name] = exportedMetric
 		}
 	}
-	require.Len(t, metrics, 4)
+	require.Len(t, metrics, 6)
 
 	duration, ok := metrics["gosoline.http.server.request.duration"]
 	require.True(t, ok)
 	require.Equal(t, "s", duration.Unit)
 	durationHistogram, ok := duration.Data.(metricdata.Histogram[float64])
 	require.True(t, ok)
-	require.Len(t, durationHistogram.DataPoints, 5)
-	statuses := make(map[string]bool, 5)
+	require.Len(t, durationHistogram.DataPoints, 6)
+	statuses := make(map[string]bool, 6)
 	for _, point := range durationHistogram.DataPoints {
 		attributes := point.Attributes.ToSlice()
 		route := metricStringAttribute(attributes, "route")
@@ -168,6 +175,8 @@ func TestMetricMiddlewareEmitsCanonicalOtelMetrics(t *testing.T) {
 			require.Equal(t, "503", status)
 		case "/health":
 			require.Equal(t, "200", status)
+		case "/server-error":
+			require.Equal(t, "599", status)
 		default:
 			require.FailNow(t, "unexpected duration route", route)
 		}
@@ -180,34 +189,57 @@ func TestMetricMiddlewareEmitsCanonicalOtelMetrics(t *testing.T) {
 		statuses[route+":"+status] = true
 	}
 	require.Equal(t, map[string]bool{
-		"/widgets/:id:200": true,
-		"/widgets/:id:429": true,
-		"/auth:401":        true,
-		"/chaos:503":       true,
-		"/health:200":      true,
+		"/widgets/:id:200":  true,
+		"/widgets/:id:429":  true,
+		"/auth:401":         true,
+		"/chaos:503":        true,
+		"/health:200":       true,
+		"/server-error:599": true,
 	}, statuses)
 
 	requests, ok := metrics["gosoline.http.server.requests"]
 	require.True(t, ok)
-	assertOtelCounterSeries(t, requests, map[string]float64{"": 5}, false)
+	assertOtelCounterSeries(t, requests, map[string]float64{"": 6}, false)
 
 	routedRequests, ok := metrics["gosoline.http.server.routed.requests"]
 	require.True(t, ok)
 	assertOtelCounterSeries(t, routedRequests, map[string]float64{
-		"/widgets/:id": 2,
-		"/auth":        1,
-		"/chaos":       1,
-		"/idle":        0,
-		"/health":      1,
+		"/widgets/:id":  2,
+		"/auth":         1,
+		"/chaos":        1,
+		"/idle":         0,
+		"/health":       1,
+		"/server-error": 1,
 	}, true)
 
 	rejected, ok := metrics["gosoline.http.server.rejected.requests"]
 	require.True(t, ok)
 	assertOtelCounterSeries(t, rejected, map[string]float64{
-		"/widgets/:id": 1,
-		"/auth":        0,
-		"/chaos":       0,
-		"/idle":        0,
+		"/widgets/:id":  1,
+		"/auth":         0,
+		"/chaos":        0,
+		"/idle":         0,
+		"/server-error": 0,
+	}, true)
+	responses, ok := metrics["gosoline.http.server.responses"]
+	require.True(t, ok)
+	assertOtelResponseCounterSeries(t, responses, map[string]float64{
+		"200:2xx": 2,
+		"429:4xx": 1,
+		"401:4xx": 1,
+		"503:5xx": 1,
+		"599:5xx": 1,
+	}, false)
+
+	routedResponses, ok := metrics["gosoline.http.server.routed.responses"]
+	require.True(t, ok)
+	assertOtelResponseCounterSeries(t, routedResponses, map[string]float64{
+		"/widgets/:id:GET:200:2xx":  1,
+		"/widgets/:id:GET:429:4xx":  1,
+		"/auth:GET:401:4xx":         1,
+		"/chaos:GET:503:5xx":        1,
+		"/health:GET:200:2xx":       1,
+		"/server-error:GET:599:5xx": 1,
 	}, true)
 }
 
@@ -234,6 +266,42 @@ func assertOtelCounterSeries(t *testing.T, exported metricdata.Metrics, expected
 			require.ElementsMatch(t, []attribute.KeyValue{attribute.String("name", "api")}, attributes)
 		}
 		actualValues[route] = point.Value
+	}
+	require.Equal(t, expectedValues, actualValues)
+}
+
+func assertOtelResponseCounterSeries(t *testing.T, exported metricdata.Metrics, expectedValues map[string]float64, routed bool) {
+	t.Helper()
+
+	require.Equal(t, "{response}", exported.Unit)
+	counter, ok := exported.Data.(metricdata.Sum[float64])
+	require.True(t, ok)
+	require.True(t, counter.IsMonotonic)
+	require.Len(t, counter.DataPoints, len(expectedValues))
+
+	actualValues := make(map[string]float64, len(counter.DataPoints))
+	for _, point := range counter.DataPoints {
+		attributes := point.Attributes.ToSlice()
+		statusCode := metricStringAttribute(attributes, dimensionStatusCode)
+		statusClass := metricStringAttribute(attributes, dimensionStatusClass)
+		if routed {
+			route := metricStringAttribute(attributes, dimensionRoute)
+			require.ElementsMatch(t, []attribute.KeyValue{
+				attribute.String("name", "api"),
+				attribute.String("route", route),
+				attribute.String("request.method", http.MethodGet),
+				attribute.String(dimensionStatusCode, statusCode),
+				attribute.String(dimensionStatusClass, statusClass),
+			}, attributes)
+			actualValues[route+":"+http.MethodGet+":"+statusCode+":"+statusClass] = point.Value
+		} else {
+			require.ElementsMatch(t, []attribute.KeyValue{
+				attribute.String("name", "api"),
+				attribute.String(dimensionStatusCode, statusCode),
+				attribute.String(dimensionStatusClass, statusClass),
+			}, attributes)
+			actualValues[statusCode+":"+statusClass] = point.Value
+		}
 	}
 	require.Equal(t, expectedValues, actualValues)
 }

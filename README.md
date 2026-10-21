@@ -17,13 +17,15 @@ The metric middleware emits metrics in the `http.server` namespace:
 
 - `requests` is a high-priority `UnitCount` counter for the server total, keyed only by `name`, with a zero default.
 - `routed.requests` is a high-priority `UnitCount` counter for each route and method, keyed by `name`, `route`, and `request.method`, with a zero default for each application route definition.
-- `request.duration` is a histogram recorded in milliseconds; the Gosoline metric writer exports it in seconds. It records latency with `name`, `route`, `request.method`, and the full numeric `response.status_code`.
+- `responses` is a high-priority `UnitCount` counter for completed matched responses, keyed by `name`, `response.status_code`, and bounded `response.status_class`. It has no zero default.
+- `routed.responses` is a high-priority `UnitCount` counter for completed matched responses on each route and method, keyed by `name`, `route`, `request.method`, `response.status_code`, and `response.status_class`. It has no zero default.
+- `request.duration` is a histogram recorded in milliseconds; the Gosoline metric writer exports it in seconds. Its dimensions remain `name`, `route`, `request.method`, and the full numeric `response.status_code`.
 - `rejected.requests` is a counter with `name`, `route`, and `request.method` dimensions. Application route definitions receive a zero default.
 - `active_request.count` and `connection.count` are gauges with the `name` dimension.
 
-The request counters are recorded once for every matched request when the metric middleware unwinds, including requests aborted by downstream overload or chaos middleware. Unmatched routes remain excluded; matched health routes are counted, but `/health` has no zero default before its first request because it is registered outside the application route definitions. Neither counter has a status dimension, and the duration histogram remains a separate latency metric.
+The request and response counters are recorded once after the middleware unwinds for every matched request, including downstream overload, auth, or chaos aborts. Unmatched routes remain excluded; matched health routes are counted, but `/health` has no zero default before its first request because it is registered outside the application route definitions. The existing request counters remain statusless and keep their current defaults; response counters add the full numeric status code and its bounded `1xx`–`5xx` class without adding zero defaults. The duration histogram retains its existing dimensions and latency semantics.
 
-The canonical v2 request counters preserve separate server and route counts under new names. The legacy dimensions `Method`, `Path`, and `ServerName` map to `request.method`, `route`, and `name`; status-class metric series are represented by the full status code on the duration histogram.
+The canonical v2 request counters preserve separate server and route counts under new names. The legacy dimensions `Method`, `Path`, and `ServerName` map to `request.method`, `route`, and `name`. Status class is an attribute of the response counters alongside the full status code; the duration histogram continues to carry only the full status code.
 
 ## Installation
 
