@@ -39,6 +39,12 @@ func ErrorMiddlewareWithHandler(settings ErrorsSettings, handler ErrorHandler, m
 			return
 		}
 
+		if httpUnavailable(c) {
+			c.Abort()
+
+			return
+		}
+
 		err := c.Errors.Last().Err
 		errorHeaders := headersFromError(err)
 		statusCode := GetErrorStatusCodeWithMappers(err, mappers...)

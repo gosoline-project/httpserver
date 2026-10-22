@@ -28,6 +28,7 @@ func (s *HttpServerOptionsTestSuite) SetupSuite() []suite.Option {
 	return []suite.Option{
 		suite.WithLogLevel("info"),
 		suite.WithSharedEnvironment(),
+		suite.WithoutAutoDetectedComponents("localstack"),
 	}
 }
 

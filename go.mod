@@ -5,11 +5,11 @@ require (
 	github.com/gin-contrib/gzip v0.0.5
 	github.com/gin-contrib/location v0.0.2
 	github.com/gin-gonic/gin v1.11.0
-	github.com/go-http-utils/headers v0.0.0-20181008091004-fed159eddc2a
 	github.com/go-playground/mold/v4 v4.2.0
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/go-resty/resty/v2 v2.7.1-0.20230308051516-1578007c3c8d
 	github.com/golang-jwt/jwt/v5 v5.3.0
+	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/justtrackio/gosoline v0.63.5
 	github.com/stretchr/testify v1.11.1
@@ -85,6 +85,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.10 // indirect
 	github.com/getsentry/sentry-go v0.38.0 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
+	github.com/go-http-utils/headers v0.0.0-20181008091004-fed159eddc2a // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect

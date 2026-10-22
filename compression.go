@@ -8,6 +8,7 @@ import (
 
 	ginGzip "github.com/gin-contrib/gzip"
 	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 )
 
 func configureCompression(settings CompressionSettings) ([]gin.HandlerFunc, error) {
@@ -20,7 +21,7 @@ func configureCompression(settings CompressionSettings) ([]gin.HandlerFunc, erro
 	middlewares = append(middlewares, recordRequestSize)
 
 	if level, err = parseLevel(settings.Level); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("configure compression level: %w", err)
 	}
 
 	if level == gzip.NoCompression && !settings.Decompression {
@@ -46,7 +47,20 @@ func configureCompression(settings CompressionSettings) ([]gin.HandlerFunc, erro
 		opts = append(opts, ginGzip.WithExcludedPathsRegexs(settings.Exclude.PathRegex))
 	}
 
-	middlewares = append(middlewares, ginGzip.Gzip(level, opts...))
+	compress := ginGzip.Gzip(level, opts...)
+	middlewares = append(middlewares, func(c *gin.Context) {
+		// HTTP gzip must not retain a writer that emits a footer after Hijack.
+		// The pinned gzip middleware's own Upgrade check is case-sensitive.
+		if websocket.IsWebSocketUpgrade(c.Request) {
+			if settings.Decompression && c.Request.Header.Get(HeaderContentEncoding) == HeaderValueGzip {
+				decompressionFn(c)
+			}
+			c.Next()
+
+			return
+		}
+		compress(c)
+	})
 	middlewares = append(middlewares, recordResponseSize)
 
 	return middlewares, nil

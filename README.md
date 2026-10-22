@@ -280,6 +280,121 @@ registered on that router and their negotiated errors. Explicit headers, such as
 `Retry-After`, remain unchanged. If a selected encoder fails, the error path
 preserves the mapped status and uses JSON as a fallback.
 
+## WebSockets
+
+WebSockets are a streaming transport, separate from typed HTTP responses. Register a route on an `HttpServer` created by `NewServer` or `NewServerWithSettings` (or the public `NewWithInterfaces` constructor); a bare Gin router has no managed connection registry and returns HTTP 500 before an upgrade.
+
+Configure the connection limits and origin policy with a server option:
+
+```go
+httpserver.WithWebsocketOptions(httpserver.WebsocketOptions{
+    ReadLimit:    2 << 20,
+    WriteTimeout: 5 * time.Second,
+    CloseTimeout: time.Second,
+    CheckOrigin:  func(r *http.Request) bool { return r.Header.Get("Origin") == "https://app.example.com" },
+})
+```
+
+`WebsocketOptions` contains `ReadLimit int64`, `WriteTimeout time.Duration`, `CloseTimeout time.Duration`, and `CheckOrigin func(*http.Request) bool`. Zero values use a 1 MiB read limit, 5-second write timeout, 1-second close timeout, and Gorilla's default origin check: same-host origins are accepted, as are requests without an `Origin` header. Set `CheckOrigin` explicitly to change that policy; CORS settings do not grant WebSocket origins. Negative limits or timeouts are invalid.
+
+Register one of the four callback binders with `Router.GET`:
+
+```go
+func BindWebsocket[I any](handler func(context.Context, *I, *WebsocketConn) error, binders ...binding.Binding) gin.HandlerFunc
+func BindWebsocketR[I any](handler func(context.Context, *http.Request, *I, *WebsocketConn) error, binders ...binding.Binding) gin.HandlerFunc
+func BindWebsocketN(handler func(context.Context, *WebsocketConn) error) gin.HandlerFunc
+func BindWebsocketNR(handler func(context.Context, *http.Request, *WebsocketConn) error) gin.HandlerFunc
+```
+Typed variants bind request input before upgrading and return binding failures through the normal negotiated HTTP 400 path; `R` variants also pass the raw request.
+
+For example, use the same `RouterFactory` and `NewServer` registration as other routes:
+
+```go
+func websocketRoutes(ctx context.Context, config cfg.Config, logger log.Logger, router *httpserver.Router) error {
+    router.GET("/ws", httpserver.BindWebsocketN(echoWebsocket))
+    return nil
+}
+
+var serverFactory = httpserver.NewServer(
+    "api",
+    websocketRoutes,
+    httpserver.WithWebsocketOptions(httpserver.WebsocketOptions{}),
+)
+```
+
+`WebsocketConn` exposes complete text and binary messages:
+
+```go
+type WebsocketMessageType int
+
+const (
+    WebsocketTextMessage   WebsocketMessageType = 1
+    WebsocketBinaryMessage WebsocketMessageType = 2
+)
+
+func (*WebsocketConn) ReadMessage() (WebsocketMessageType, []byte, error)
+func (*WebsocketConn) Send(data []byte) error
+func (*WebsocketConn) SendBinary(data []byte) error
+func (*WebsocketConn) Close() error
+func (*WebsocketConn) CloseWithStatus(code int, reason string) error
+func (*WebsocketConn) RejectIncomingMessages(reason string) error
+```
+
+A duplex handler owns the single application read loop; concurrent reads are rejected. Concurrent `Send` and `SendBinary` calls are serialized, with a fresh write deadline for each send. `Send` sends one text message, including an empty text message for a nil or empty slice; `SendBinary` sends one binary message.
+
+```go
+func echoWebsocket(ctx context.Context, conn *httpserver.WebsocketConn) error {
+    for {
+        messageType, data, err := conn.ReadMessage()
+        if err != nil {
+            return err
+        }
+
+        switch messageType {
+        case httpserver.WebsocketTextMessage:
+            if err := conn.Send(data); err != nil {
+                return err
+            }
+        case httpserver.WebsocketBinaryMessage:
+            if err := conn.SendBinary(data); err != nil {
+                return err
+            }
+        }
+    }
+}
+```
+
+For an outbound-only stream, call `RejectIncomingMessages` before starting any application read. It starts the exclusive framework reader, processes control frames, and closes on the first incoming data message with status 1008 and the supplied reason; it does not wait for a fragmented message body. It may be called only once and cannot be combined with `ReadMessage`.
+
+```go
+func serveFeed(ctx context.Context, conn *httpserver.WebsocketConn) error {
+    if err := conn.RejectIncomingMessages("server stream does not accept messages"); err != nil {
+        return err
+    }
+    ticker := time.NewTicker(time.Second)
+    defer ticker.Stop()
+
+    for {
+        select {
+        case <-ctx.Done():
+            return ctx.Err()
+        case <-ticker.C:
+            if err := conn.Send([]byte(`{"status":"ok"}`)); err != nil {
+                return err
+            }
+        }
+    }
+}
+```
+
+The handler runs synchronously with a connection-lifetime context that preserves Gin context values and observes cancellation of the underlying request; terminal connection I/O failures also cancel it. The callback owns any goroutines it starts and must stop and join them before returning; do not retain or use the Gin context asynchronously. Framework-owned workers are joined during binder cleanup. A clean callback return closes normally with 1000. An unexpected callback error closes with 1011 (`"stream failed"`).
+
+`Close` is idempotent and selects a normal 1000 close. `CloseWithStatus` accepts server-sent protocol codes 1000–1003, 1007–1009, and 1011–1014, or application codes 3000–4999. Close reasons must be valid UTF-8 and at most 123 bytes. Invalid codes or reasons return a descriptive error and leave the connection usable. `RejectIncomingMessages` applies the same reason validation before changing receive mode. The first selected close status wins.
+
+Protocol/framing errors and the configured read limit take precedence over the receive-rejection policy: malformed frames retain status 1002, and messages exceeding the read limit retain 1009 rather than being reported as 1008.
+
+On shutdown, managed WebSockets receive a best-effort 1001 (`"server shutting down"`) close and are hard-closed within the shared shutdown budget, bounded by `CloseTimeout`. Shutdown cancels callbacks and waits for them before normally running registered application handler closers. If the budget expires first, shutdown reports an error and still attempts those closers; it cannot forcibly stop a callback that ignores cancellation or blocks indefinitely.
+
 ## Middleware
 
 Attach gin-compatible handlers:

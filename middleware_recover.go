@@ -46,7 +46,9 @@ func RecoveryWithSentryAndErrorHandler(logger log.Logger, handler ErrorHandler) 
 
 			logger.Error(ctx, "%w", rerr)
 			c.Abort()
-			writeErrorResponseWithHandler(c, http.StatusInternalServerError, rerr, handler)
+			if !httpUnavailable(c) {
+				writeErrorResponseWithHandler(c, http.StatusInternalServerError, rerr, handler)
+			}
 		}()
 
 		c.Next()
