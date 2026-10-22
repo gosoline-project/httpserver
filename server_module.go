@@ -49,6 +49,7 @@ type HttpServer struct {
 	metricRecorder ServerMetricRecorder
 	healthy        atomic.Bool
 	handlerClosers []io.Closer
+	websockets     *websocketRegistry
 }
 
 // NewServer creates a module factory for a named HTTP server using config-based settings.
@@ -144,7 +145,7 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 			return nil, fmt.Errorf("can not append metadata: %w", err)
 		}
 
-		return newWithInterfaces(ctx, logger, router, tracingInstrumentor, settings, metricRecorder, definitions.handlerClosers)
+		return newWithInterfaces(ctx, logger, router, tracingInstrumentor, settings, metricRecorder, definitions.handlerClosers, serverOpts.websocket)
 	}
 }
 
@@ -168,7 +169,16 @@ func newWithInterfaces(
 	settings *Settings,
 	metricRecorder ServerMetricRecorder,
 	handlerClosers []io.Closer,
+	websocketOptions ...WebsocketOptions,
 ) (*HttpServer, error) {
+	options := defaultWebsocketOptions()
+	if len(websocketOptions) > 0 {
+		var err error
+		if options, err = normalizeWebsocketOptions(websocketOptions[0]); err != nil {
+			return nil, fmt.Errorf("configure managed websocket transport: %w", err)
+		}
+	}
+	websockets := newWebsocketRegistry(logger, options)
 	connectionPressureManager := NewConnectionPressureManager(ctx, metricRecorder)
 
 	server := &http.Server{
@@ -178,6 +188,9 @@ func newWithInterfaces(
 		WriteTimeout: settings.Timeout.Write,
 		IdleTimeout:  settings.Timeout.Idle,
 		ConnState:    connectionPressureManager.ConnState,
+		BaseContext: func(net.Listener) context.Context {
+			return context.WithValue(context.Background(), websocketRegistryKey{}, websockets)
+		},
 	}
 
 	var err error
@@ -191,7 +204,7 @@ func newWithInterfaces(
 	// open a port for the server already in this step so we can already start accepting connections
 	// when this module is later run (see also issue #201)
 	if listener, err = net.Listen("tcp", address); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("listen for http server on %s: %w", address, err)
 	}
 	listener = NewConnectionLimitListener(ctx, logger, listener, settings.Concurrency, connectionPressureManager)
 
@@ -204,6 +217,7 @@ func newWithInterfaces(
 		settings:       settings,
 		metricRecorder: metricRecorder,
 		handlerClosers: handlerClosers,
+		websockets:     websockets,
 	}
 
 	return apiServer, nil
@@ -234,7 +248,7 @@ func (s *HttpServer) Run(ctx context.Context) error {
 	if err := errors.Join(runErr, closeErr); err != nil {
 		s.logger.Error(ctx, "failed to run http server: %w", err)
 
-		return err
+		return fmt.Errorf("run http server: %w", err)
 	}
 
 	s.logger.Info(ctx, "leaving httpserver")
@@ -268,11 +282,24 @@ func (s *HttpServer) waitForStop(ctx context.Context) error {
 
 	s.logger.Info(ctx, "trying to gracefully shutdown httpserver")
 
-	if err := s.server.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("server shutdown: %w", err)
+	// Shutdown excludes hijacked sockets. Start both paths under the same budget
+	// so ordinary HTTP drain cannot starve WebSocket termination.
+	s.websockets.stopAdmission()
+	httpDone := make(chan error, 1)
+	go func() {
+		httpDone <- s.server.Shutdown(shutdownCtx)
+	}()
+
+	websocketErr := s.websockets.shutdown(shutdownCtx)
+	httpErr := <-httpDone
+	if httpErr != nil {
+		httpErr = fmt.Errorf("server shutdown: %w", httpErr)
+	}
+	if websocketErr != nil {
+		websocketErr = fmt.Errorf("websocket shutdown: %w", websocketErr)
 	}
 
-	return nil
+	return errors.Join(httpErr, websocketErr)
 }
 
 // GetPort returns the actual listener port, useful when the configured port is 0.

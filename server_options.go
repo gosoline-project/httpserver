@@ -3,6 +3,8 @@ package httpserver
 import (
 	"errors"
 	"fmt"
+	"net/http"
+	"time"
 )
 
 // ServerOption configures a server during construction.
@@ -14,6 +16,7 @@ type serverOptions struct {
 	responseNegotiator ResponseNegotiator
 	errorMappers       []ErrorMapper
 	errorHandler       ErrorHandler
+	websocket          WebsocketOptions
 }
 
 // WithResponseNegotiator configures the response negotiator used by the server.
@@ -55,10 +58,61 @@ func WithErrorMapper(mapper ErrorMapper) ServerOption {
 	}
 }
 
+// WebsocketOptions configures managed WebSocket connections. Zero numeric values
+// select the defaults; a nil CheckOrigin uses same-host or absent-Origin checks.
+type WebsocketOptions struct {
+	ReadLimit    int64
+	WriteTimeout time.Duration
+	CloseTimeout time.Duration
+	CheckOrigin  func(*http.Request) bool
+}
+
+func defaultWebsocketOptions() WebsocketOptions {
+	return WebsocketOptions{
+		ReadLimit:    1 << 20,
+		WriteTimeout: 5 * time.Second,
+		CloseTimeout: time.Second,
+	}
+}
+
+func normalizeWebsocketOptions(options WebsocketOptions) (WebsocketOptions, error) {
+	if options.ReadLimit < 0 || options.WriteTimeout < 0 || options.CloseTimeout < 0 {
+		return WebsocketOptions{}, fmt.Errorf("websocket read limit, write timeout and close timeout must not be negative")
+	}
+	defaults := defaultWebsocketOptions()
+	if options.ReadLimit == 0 {
+		options.ReadLimit = defaults.ReadLimit
+	}
+	if options.WriteTimeout == 0 {
+		options.WriteTimeout = defaults.WriteTimeout
+	}
+	if options.CloseTimeout == 0 {
+		options.CloseTimeout = defaults.CloseTimeout
+	}
+
+	return options, nil
+}
+
+// WithWebsocketOptions configures WebSocket bounds independently of HTTP timeouts
+// and CORS. Negative bounds fail server construction before opening a listener.
+func WithWebsocketOptions(options WebsocketOptions) ServerOption {
+	return func(server *serverOptions) error {
+		var normalized WebsocketOptions
+		var err error
+		if normalized, err = normalizeWebsocketOptions(options); err != nil {
+			return fmt.Errorf("configure websocket options: %w", err)
+		}
+		server.websocket = normalized
+
+		return nil
+	}
+}
+
 func newServerOptions(options ...ServerOption) (*serverOptions, error) {
 	opts := &serverOptions{
 		responseNegotiator: NewDefaultResponseNegotiator(),
 		errorHandler:       defaultErrorHandler,
+		websocket:          defaultWebsocketOptions(),
 	}
 
 	for _, option := range options {

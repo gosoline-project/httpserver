@@ -34,6 +34,7 @@ func (s *HttpServerExtendedTestSuite) SetupSuite() []suite.Option {
 	return []suite.Option{
 		suite.WithLogLevel("info"),
 		suite.WithSharedEnvironment(),
+		suite.WithoutAutoDetectedComponents("localstack"),
 	}
 }
 

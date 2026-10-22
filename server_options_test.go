@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/justtrackio/gosoline/pkg/appctx"
@@ -286,4 +287,67 @@ func TestNewServerWithSettingsUsesConfiguredErrorHandler(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
 	assert.Equal(t, ContentTypeJson, recorder.Header().Get(HeaderContentType))
 	assert.JSONEq(t, `{"error":"server error"}`, recorder.Body.String())
+}
+
+func TestNewServerWithSettingsRejectsNegativeWebsocketBoundsBeforeRoutesOrListener(t *testing.T) {
+	tests := []struct {
+		name    string
+		options WebsocketOptions
+	}{
+		{name: "read limit", options: WebsocketOptions{ReadLimit: -1}},
+		{name: "write timeout", options: WebsocketOptions{WriteTimeout: -1}},
+		{name: "close timeout", options: WebsocketOptions{CloseTimeout: -1}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			defined := false
+			factory := NewServerWithSettings(
+				t.Context(),
+				"test",
+				func(context.Context, cfg.Config, log.Logger, *Router) error {
+					defined = true
+
+					return nil
+				},
+				&Settings{Port: "0"},
+				WithWebsocketOptions(test.options),
+			)
+			module, err := factory(t.Context(), nil, nil)
+			require.Error(t, err)
+			require.Nil(t, module)
+			require.False(t, defined)
+		})
+	}
+}
+
+func TestNewServerOptionsUsesWebsocketDefaults(t *testing.T) {
+	options, err := newServerOptions()
+
+	require.NoError(t, err)
+	require.EqualValues(t, 1<<20, options.websocket.ReadLimit)
+	require.Equal(t, 5*time.Second, options.websocket.WriteTimeout)
+	require.Equal(t, time.Second, options.websocket.CloseTimeout)
+	require.Nil(t, options.websocket.CheckOrigin)
+}
+
+func TestNewServerOptionsAppliesConfiguredWebsocketBoundsAndOriginPolicy(t *testing.T) {
+	checkOrigin := func(request *http.Request) bool {
+		return request.Header.Get("Origin") == "https://trusted.example"
+	}
+	configured := WebsocketOptions{
+		ReadLimit:    256,
+		WriteTimeout: 250 * time.Millisecond,
+		CloseTimeout: 125 * time.Millisecond,
+		CheckOrigin:  checkOrigin,
+	}
+
+	options, err := newServerOptions(WithWebsocketOptions(configured))
+
+	require.NoError(t, err)
+	require.Equal(t, configured.ReadLimit, options.websocket.ReadLimit)
+	require.Equal(t, configured.WriteTimeout, options.websocket.WriteTimeout)
+	require.Equal(t, configured.CloseTimeout, options.websocket.CloseTimeout)
+	require.True(t, options.websocket.CheckOrigin(&http.Request{Header: http.Header{"Origin": {"https://trusted.example"}}}))
+	require.False(t, options.websocket.CheckOrigin(&http.Request{Header: http.Header{"Origin": {"https://attacker.example"}}}))
 }

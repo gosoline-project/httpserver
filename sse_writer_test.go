@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,6 +23,41 @@ type SseWriterTestSuite struct {
 	rec    *httptest.ResponseRecorder
 	ctx    context.Context
 	writer *httpserver.SseWriter
+}
+
+type synchronizedSseResponseRecorder struct {
+	*httptest.ResponseRecorder
+	mu        sync.Mutex
+	written   chan struct{}
+	writeOnce sync.Once
+}
+
+func newSynchronizedSseResponseRecorder() *synchronizedSseResponseRecorder {
+	return &synchronizedSseResponseRecorder{
+		ResponseRecorder: httptest.NewRecorder(),
+		written:          make(chan struct{}),
+	}
+}
+
+func (r *synchronizedSseResponseRecorder) Write(payload []byte) (int, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	n, err := r.ResponseRecorder.Write(payload)
+	if err == nil {
+		r.writeOnce.Do(func() {
+			close(r.written)
+		})
+	}
+
+	return n, err
+}
+
+func (r *synchronizedSseResponseRecorder) bodyString() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.Body.String()
 }
 
 func (s *SseWriterTestSuite) SetupTest() {
@@ -205,11 +241,19 @@ func (s *SseWriterTestSuite) TestBrowserEventSourceCompatibility() {
 }
 
 func (s *SseWriterTestSuite) TestHeartbeatsEnabledByDefault() {
-	rec := httptest.NewRecorder()
+	rec := newSynchronizedSseResponseRecorder()
 	writer := httpserver.NewSseWriter(s.ctx, rec)
 	defer writer.Close()
 
-	time.Sleep(6 * time.Second)
+	timer := time.NewTimer(6 * time.Second)
+	defer timer.Stop()
 
-	s.Contains(rec.Body.String(), ": heartbeat\n\n")
+	select {
+	case <-rec.written:
+		writer.Close()
+	case <-timer.C:
+		s.FailNow("timed out waiting for the default SSE heartbeat")
+	}
+
+	s.Contains(rec.bodyString(), ": heartbeat\n\n")
 }
