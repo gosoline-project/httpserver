@@ -17,6 +17,7 @@ import (
 	gosolineLog "github.com/justtrackio/gosoline/pkg/log"
 	logMocks "github.com/justtrackio/gosoline/pkg/log/mocks"
 	"github.com/justtrackio/gosoline/pkg/metric"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
@@ -437,6 +438,29 @@ func assertCloudWatchRoutedResponseProjection(t *testing.T, logger gosolineLog.L
 	require.Equal(t, map[string]float64{"500": 1, "599": 1}, rawCloudWatchCodes)
 	require.Equal(t, 2.0, rawCloudWatchCount)
 	require.Equal(t, 2.0, classCloudWatchCount)
+	assertPrometheusRoutedResponseRawCount(t, logger, cloudwatchData)
+}
+
+func assertPrometheusRoutedResponseRawCount(t *testing.T, logger gosolineLog.Logger, datums metric.Data) {
+	t.Helper()
+
+	registry := prometheus.NewRegistry()
+	writer := metric.NewPrometheusWriterWithInterfaces(logger, registry, 100, 10*time.Second)
+	writer.Write(t.Context(), datums)
+
+	families, err := registry.Gather()
+	require.NoError(t, err)
+	require.Len(t, families, 1)
+	require.Equal(t, "gosoline_http_server_routed_responses_total", families[0].GetName())
+	require.Len(t, families[0].Metric, 2)
+
+	var rawPrometheusCount float64
+	for _, sample := range families[0].Metric {
+		value := sample.GetCounter().GetValue()
+		require.Equal(t, 1.0, value)
+		rawPrometheusCount += value
+	}
+	require.Equal(t, 2.0, rawPrometheusCount)
 }
 
 func metricStringAttribute(attributes []attribute.KeyValue, name string) string {
