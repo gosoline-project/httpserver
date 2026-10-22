@@ -27,6 +27,8 @@ The request and response counters are recorded once after the middleware unwinds
 
 The canonical v2 request counters preserve separate server and route counts under new names. The legacy dimensions `Method`, `Path`, and `ServerName` map to `request.method`, `route`, and `name`. Status class is an attribute of the response counters alongside the full status code; the duration histogram continues to carry only the full status code.
 
+CloudWatch also receives a `KindTotal` projection of each `routed.responses` observation under the same metric name and value. Only the numeric status-code dimension is replaced with Gosoline's default marker, which CloudWatch omits, so the projection is keyed by `name`, `route`, `request.method`, and `response.status_class`. It lets CloudWatch aggregate all status codes within a class while the raw five-dimension Counter remains available. OTel and Prometheus skip the projection and continue to expose only the raw Counter. CloudWatch Metrics Insights queries that target raw observations should use an exact `FROM SCHEMA("<CloudWatch namespace>", name, route, request.method, response.status_code, response.status_class)` source; this fences off the four-dimension projection and prevents overlapping counts.
+
 ## Installation
 
 ```bash

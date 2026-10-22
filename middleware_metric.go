@@ -87,7 +87,7 @@ func MetricMiddleware(name string, ginCtx *gin.Context, writer metric.Writer, me
 		dimensionStatusClass: responseStatusClass,
 	}
 
-	data := make(metric.Data, 0, 6)
+	data := make(metric.Data, 0, 7)
 	data = append(data,
 		&metric.Datum{
 			Priority:   metric.PriorityHigh,
@@ -117,6 +117,20 @@ func MetricMiddleware(name string, ginCtx *gin.Context, writer metric.Writer, me
 			Unit:       metric.UnitCount,
 			Value:      1.0,
 			Kind:       metric.KindCounter.Build(),
+		},
+		&metric.Datum{
+			Priority:   metric.PriorityHigh,
+			MetricName: metricRouteResponses,
+			Dimensions: metric.Dimensions{
+				dimensionServerName:  name,
+				dimensionRoute:       path,
+				dimensionMethod:      method,
+				dimensionStatusCode:  metric.DimensionDefault,
+				dimensionStatusClass: responseStatusClass,
+			},
+			Unit:  metric.UnitCount,
+			Value: 1.0,
+			Kind:  metric.KindTotal,
 		},
 		&metric.Datum{
 			Priority:   metric.PriorityHigh,
