@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -259,6 +260,7 @@ func TestMetricMiddlewareEmitsCanonicalOtelMetrics(t *testing.T) {
 	}, true)
 	assertOtelRoutedResponseTotal(t, routedResponses)
 	assertCloudWatchRoutedResponseProjection(t, logger, observedDatums)
+	assertCloudWatchRejectedRequestProjection(t, logger, observedDatums)
 }
 
 func assertOtelCounterSeries(t *testing.T, exported metricdata.Metrics, expectedValues map[string]float64, perRoute bool) {
@@ -328,34 +330,52 @@ func assertObservedRoutedResponseProjection(t *testing.T, datums []metric.Datum)
 	t.Helper()
 
 	var rawRoutedResponseCount, totalRoutedResponseCount int
+	var rawRejectedRequestCount, totalRejectedRequestCount int
 	routedResponseTotals := make(map[string]float64)
+	rejectedRequestRawValues := make(map[string]float64)
+	rejectedRequestTotalValues := make(map[float64]int)
 	for _, datum := range datums {
 		require.Equal(t, metric.PriorityHigh, datum.Priority)
 		require.Equal(t, metric.UnitCount, datum.Unit)
-		if datum.MetricName != metricRouteResponses {
+		switch datum.MetricName {
+		case MetricHttpRequestsRejected:
+			if reflect.DeepEqual(datum.Kind, metric.KindTotal) {
+				totalRejectedRequestCount++
+				rejectedRequestTotalValues[datum.Value]++
+				require.Contains(t, []float64{0.0, 1.0}, datum.Value)
+				require.Equal(t, metric.Dimensions{dimensionServerName: "api"}, datum.Dimensions)
+			} else {
+				rawRejectedRequestCount++
+				require.Equal(t, metric.KindCounter.Build(), datum.Kind)
+				require.Equal(t, metric.Dimensions{
+					dimensionServerName: "api",
+					dimensionRoute:      datum.Dimensions[dimensionRoute],
+					dimensionMethod:     http.MethodGet,
+				}, datum.Dimensions)
+				rejectedRequestRawValues[datum.Dimensions[dimensionRoute]] += datum.Value
+			}
+		case metricRouteResponses:
+			if datum.Dimensions[dimensionStatusCode] == metric.DimensionDefault {
+				totalRoutedResponseCount++
+				require.Equal(t, metric.KindTotal, datum.Kind)
+				require.Equal(t, 1.0, datum.Value)
+				require.Equal(t, metric.Dimensions{
+					dimensionServerName:  "api",
+					dimensionRoute:       datum.Dimensions[dimensionRoute],
+					dimensionMethod:      http.MethodGet,
+					dimensionStatusCode:  metric.DimensionDefault,
+					dimensionStatusClass: datum.Dimensions[dimensionStatusClass],
+				}, datum.Dimensions)
+				key := datum.Dimensions[dimensionRoute] + ":" + http.MethodGet + ":" + datum.Dimensions[dimensionStatusClass]
+				routedResponseTotals[key] += datum.Value
+			} else {
+				rawRoutedResponseCount++
+				require.Equal(t, metric.KindCounter.Build(), datum.Kind)
+				require.Equal(t, 1.0, datum.Value)
+				require.NotEqual(t, metric.DimensionDefault, datum.Dimensions[dimensionStatusCode])
+			}
+		default:
 			require.Equal(t, metric.KindCounter.Build(), datum.Kind)
-
-			continue
-		}
-
-		if datum.Dimensions[dimensionStatusCode] == metric.DimensionDefault {
-			totalRoutedResponseCount++
-			require.Equal(t, metric.KindTotal, datum.Kind)
-			require.Equal(t, 1.0, datum.Value)
-			require.Equal(t, metric.Dimensions{
-				dimensionServerName:  "api",
-				dimensionRoute:       datum.Dimensions[dimensionRoute],
-				dimensionMethod:      http.MethodGet,
-				dimensionStatusCode:  metric.DimensionDefault,
-				dimensionStatusClass: datum.Dimensions[dimensionStatusClass],
-			}, datum.Dimensions)
-			key := datum.Dimensions[dimensionRoute] + ":" + http.MethodGet + ":" + datum.Dimensions[dimensionStatusClass]
-			routedResponseTotals[key] += datum.Value
-		} else {
-			rawRoutedResponseCount++
-			require.Equal(t, metric.KindCounter.Build(), datum.Kind)
-			require.Equal(t, 1.0, datum.Value)
-			require.NotEqual(t, metric.DimensionDefault, datum.Dimensions[dimensionStatusCode])
 		}
 	}
 	require.Equal(t, 7, rawRoutedResponseCount)
@@ -368,6 +388,16 @@ func assertObservedRoutedResponseProjection(t *testing.T, datums []metric.Datum)
 		"/health:GET:2xx":               1,
 		"/server-error/:status:GET:5xx": 2,
 	}, routedResponseTotals)
+	require.Equal(t, 6, rawRejectedRequestCount)
+	require.Equal(t, 2, totalRejectedRequestCount)
+	require.Equal(t, map[string]float64{
+		"/widgets/:id":          1,
+		"/auth":                 0,
+		"/chaos":                0,
+		"/idle":                 0,
+		"/server-error/:status": 0,
+	}, rejectedRequestRawValues)
+	require.Equal(t, map[float64]int{0: 1, 1: 1}, rejectedRequestTotalValues)
 }
 
 func assertOtelRoutedResponseTotal(t *testing.T, exported metricdata.Metrics) {
@@ -439,6 +469,91 @@ func assertCloudWatchRoutedResponseProjection(t *testing.T, logger gosolineLog.L
 	require.Equal(t, 2.0, rawCloudWatchCount)
 	require.Equal(t, 2.0, classCloudWatchCount)
 	assertPrometheusRoutedResponseRawCount(t, logger, cloudwatchData)
+}
+
+func assertCloudWatchRejectedRequestProjection(t *testing.T, logger gosolineLog.Logger, observedDatums []metric.Datum) {
+	t.Helper()
+
+	var cloudwatchData metric.Data
+	for i := range observedDatums {
+		datum := &observedDatums[i]
+		if datum.MetricName == MetricHttpRequestsRejected && (datum.Value == 1.0 || reflect.DeepEqual(datum.Kind, metric.KindTotal)) {
+			cloudwatchData = append(cloudwatchData, datum)
+		}
+	}
+	require.Len(t, cloudwatchData, 3)
+
+	cwClient := cloudwatchMocks.NewClient(t)
+	var writtenCloudWatchData []types.MetricDatum
+	cwClient.EXPECT().PutMetricData(mock.Anything, mock.MatchedBy(func(input *cloudwatch.PutMetricDataInput) bool {
+		writtenCloudWatchData = input.MetricData
+
+		return aws.ToString(input.Namespace) == "test/httpserver"
+	})).Return(nil, nil)
+	cwWriter := metric.NewCloudwatchWriterWithInterfaces(
+		logger,
+		clock.NewFakeClockAt(time.Unix(1549283566, 0)),
+		cwClient,
+		"test/httpserver",
+		10*time.Second,
+	)
+	cwWriter.Write(t.Context(), cloudwatchData)
+
+	require.Len(t, writtenCloudWatchData, 3)
+	var rawCloudWatchCount, totalCloudWatchCount int
+	totalCloudWatchValues := make(map[float64]int)
+	for _, datum := range writtenCloudWatchData {
+		require.Equal(t, "HttpServerRejectedRequests", aws.ToString(datum.MetricName))
+		require.Equal(t, metric.UnitCount, datum.Unit)
+		value := aws.ToFloat64(datum.Value)
+		dimensions := make(map[string]string, len(datum.Dimensions))
+		for _, dimension := range datum.Dimensions {
+			dimensions[aws.ToString(dimension.Name)] = aws.ToString(dimension.Value)
+		}
+		if _, hasRoute := dimensions[dimensionRoute]; hasRoute {
+			rawCloudWatchCount++
+			require.Equal(t, 1.0, value)
+			require.Equal(t, map[string]string{
+				dimensionServerName: "api",
+				dimensionRoute:      "/widgets/:id",
+				dimensionMethod:     http.MethodGet,
+			}, dimensions)
+		} else {
+			totalCloudWatchCount++
+			totalCloudWatchValues[value]++
+			require.Equal(t, map[string]string{dimensionServerName: "api"}, dimensions)
+		}
+	}
+	require.Equal(t, 1, rawCloudWatchCount)
+	require.Equal(t, 2, totalCloudWatchCount)
+	require.Equal(t, map[float64]int{0: 1, 1: 1}, totalCloudWatchValues)
+	assertPrometheusRejectedRequestRawCount(t, logger, cloudwatchData)
+}
+
+func assertPrometheusRejectedRequestRawCount(t *testing.T, logger gosolineLog.Logger, datums metric.Data) {
+	t.Helper()
+
+	registry := prometheus.NewRegistry()
+	writer := metric.NewPrometheusWriterWithInterfaces(logger, registry, 100, 10*time.Second)
+	writer.Write(t.Context(), datums)
+
+	families, err := registry.Gather()
+	require.NoError(t, err)
+	require.Len(t, families, 1)
+	require.Equal(t, "gosoline_http_server_rejected_requests_total", families[0].GetName())
+	require.Len(t, families[0].Metric, 1)
+
+	sample := families[0].Metric[0]
+	require.Equal(t, 1.0, sample.GetCounter().GetValue())
+	labels := make(map[string]string, len(sample.Label))
+	for _, label := range sample.Label {
+		labels[label.GetName()] = label.GetValue()
+	}
+	require.Equal(t, map[string]string{
+		dimensionServerName: "api",
+		dimensionRoute:      "/widgets/:id",
+		"request_method":    http.MethodGet,
+	}, labels)
 }
 
 func assertPrometheusRoutedResponseRawCount(t *testing.T, logger gosolineLog.Logger, datums metric.Data) {

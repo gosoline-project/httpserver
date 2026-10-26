@@ -74,6 +74,9 @@ func MetricMiddleware(name string, ginCtx *gin.Context, writer metric.Writer, me
 		dimensionRoute:      path,
 		dimensionMethod:     method,
 	}
+	serverDimensions := metric.Dimensions{
+		dimensionServerName: name,
+	}
 	responseDimensions := metric.Dimensions{
 		dimensionServerName:  name,
 		dimensionStatusCode:  responseStatusCode,
@@ -87,7 +90,7 @@ func MetricMiddleware(name string, ginCtx *gin.Context, writer metric.Writer, me
 		dimensionStatusClass: responseStatusClass,
 	}
 
-	data := make(metric.Data, 0, 7)
+	data := make(metric.Data, 0, 8)
 	data = append(data,
 		&metric.Datum{
 			Priority:   metric.PriorityHigh,
@@ -135,12 +138,10 @@ func MetricMiddleware(name string, ginCtx *gin.Context, writer metric.Writer, me
 		&metric.Datum{
 			Priority:   metric.PriorityHigh,
 			MetricName: metricRequests,
-			Dimensions: metric.Dimensions{
-				dimensionServerName: name,
-			},
-			Unit:  metric.UnitCount,
-			Value: 1.0,
-			Kind:  metric.KindCounter.Build(),
+			Dimensions: serverDimensions,
+			Unit:       metric.UnitCount,
+			Value:      1.0,
+			Kind:       metric.KindCounter.Build(),
 		},
 		&metric.Datum{
 			Priority:   metric.PriorityHigh,
@@ -153,14 +154,24 @@ func MetricMiddleware(name string, ginCtx *gin.Context, writer metric.Writer, me
 	)
 
 	if WasRequestRejected(ginCtx.Request) {
-		data = append(data, &metric.Datum{
-			Priority:   metric.PriorityHigh,
-			MetricName: MetricHttpRequestsRejected,
-			Dimensions: routeDimensions,
-			Unit:       metric.UnitCount,
-			Value:      1.0,
-			Kind:       metric.KindCounter.Build(),
-		})
+		data = append(data,
+			&metric.Datum{
+				Priority:   metric.PriorityHigh,
+				MetricName: MetricHttpRequestsRejected,
+				Dimensions: routeDimensions,
+				Unit:       metric.UnitCount,
+				Value:      1.0,
+				Kind:       metric.KindCounter.Build(),
+			},
+			&metric.Datum{
+				Priority:   metric.PriorityHigh,
+				MetricName: MetricHttpRequestsRejected,
+				Dimensions: serverDimensions,
+				Unit:       metric.UnitCount,
+				Value:      1.0,
+				Kind:       metric.KindTotal,
+			},
+		)
 	}
 
 	writer.Write(ginCtx.Request.Context(), data)
@@ -185,16 +196,24 @@ func httpStatusClass(statusCode int) string {
 
 // GetMetricMiddlewareDefaults returns zero-valued request and rejected-request counters.
 func GetMetricMiddlewareDefaults(name string, definitions ...Definition) metric.Data {
-	defaults := make(metric.Data, 0, 1+2*len(definitions))
+	serverDimensions := metric.Dimensions{
+		dimensionServerName: name,
+	}
+	defaults := make(metric.Data, 0, 2+2*len(definitions))
 	defaults = append(defaults, &metric.Datum{
 		Priority:   metric.PriorityHigh,
 		MetricName: metricRequests,
-		Dimensions: metric.Dimensions{
-			dimensionServerName: name,
-		},
-		Unit:  metric.UnitCount,
-		Value: 0.0,
-		Kind:  metric.KindCounter.Build(),
+		Dimensions: serverDimensions,
+		Unit:       metric.UnitCount,
+		Value:      0.0,
+		Kind:       metric.KindCounter.Build(),
+	}, &metric.Datum{
+		Priority:   metric.PriorityHigh,
+		MetricName: MetricHttpRequestsRejected,
+		Dimensions: serverDimensions,
+		Unit:       metric.UnitCount,
+		Value:      0.0,
+		Kind:       metric.KindTotal,
 	})
 
 	for _, definition := range definitions {
