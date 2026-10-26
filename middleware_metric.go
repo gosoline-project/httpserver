@@ -28,6 +28,13 @@ const (
 	dimensionStatusClass = "response.status_class"
 )
 
+// requestDurationHistogram uses the HTTP server request-duration bounds from the
+// OpenTelemetry semantic conventions: https://opentelemetry.io/docs/specs/semconv/http/http-metrics/
+// Bounds are authored in milliseconds and cached once to avoid per-request allocation.
+var requestDurationHistogram = metric.KindHistogram.WithBuckets([]float64{
+	5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000,
+}).Build()
+
 // NewMetricMiddleware creates request metrics middleware and a setup hook for route defaults.
 func NewMetricMiddleware(name string, metricRecorder ServerMetricRecorder) (middleware gin.HandlerFunc, setupHandler func(definitions []Definition)) {
 	// writer without any defaults until we initialize some defaults and overwrite it
@@ -103,7 +110,7 @@ func MetricMiddleware(name string, ginCtx *gin.Context, writer metric.Writer, me
 			},
 			Unit:  metric.UnitMillisecondsAverage,
 			Value: requestTimeMillisecond,
-			Kind:  metric.KindHistogram.Build(),
+			Kind:  requestDurationHistogram,
 		},
 		&metric.Datum{
 			Priority:   metric.PriorityHigh,
