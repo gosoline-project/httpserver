@@ -39,6 +39,10 @@ AWS config v1.29.0 is the first release that loads both `when_supported`
 defaults; an owned MinIO integration exercised a checksummed upload and
 validated download without compatibility overrides.
 
+The released Gosoline OpenTelemetry provider was also started with the
+updated SDK and exported a real span to an owned OpenTelemetry Collector.
+Its resource schema was preserved, and flush and shutdown succeeded.
+
 This is not a claim that the entire Gosoline dependency graph is free of
 advisories. A source scan using Go 1.26.10 still reports
 `GO-2026-4518` (`pgproto3/v2`), `GO-2026-5004` (`pgx/v4`), and
