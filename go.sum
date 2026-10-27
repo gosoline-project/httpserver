@@ -393,6 +393,8 @@ github.com/justtrackio/gosoline v0.68.4-0.20261021101322-e1a14ac09eab h1:mnw3Dmi
 github.com/justtrackio/gosoline v0.68.4-0.20261021101322-e1a14ac09eab/go.mod h1:OzijntFPElyJ/3cxJIwGLIc14toXOBoLhxtCqyUenpE=
 github.com/justtrackio/gosoline v0.68.4-0.20261022095443-a18815d97543 h1:xKO49VjlLfISZBGsBMYiOxapclfCS4WFkAEGZ/PX+Ps=
 github.com/justtrackio/gosoline v0.68.4-0.20261022095443-a18815d97543/go.mod h1:OzijntFPElyJ/3cxJIwGLIc14toXOBoLhxtCqyUenpE=
+github.com/justtrackio/gosoline v0.68.4-0.20261026102448-e669b1bf2ab6 h1:6YOPumfbMHfeSzi4WQbpZCj/AYAXAKtgdpiLPU1nyN8=
+github.com/justtrackio/gosoline v0.68.4-0.20261026102448-e669b1bf2ab6/go.mod h1:OzijntFPElyJ/3cxJIwGLIc14toXOBoLhxtCqyUenpE=
 github.com/karlseguin/ccache v0.0.0-20181227155450-692cd618b264 h1:efMPF7gQ3CFY8Kt3ECYuCc17fnoiu0EL1Tw+z7ff030=
 github.com/karlseguin/ccache v0.0.0-20181227155450-692cd618b264/go.mod h1:CM9tNPzT6EdRh14+jiW8mEF9mkNZuuE51qmgGYUB93w=
 github.com/karlseguin/expect v1.0.8 h1:Bb0H6IgBWQpadY25UDNkYPDB9ITqK1xnSoZfAq362fw=
