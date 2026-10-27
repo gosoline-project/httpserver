@@ -104,6 +104,15 @@ Bind variants:
 - `BindN(func(ctx context.Context) (O, error))` (no input)
 - `BindNR(func(ctx context.Context, req *http.Request) (O, error))`
 
+All `Bind` and `BindSse` variants, and custom input modifiers, receive the current
+HTTP request context. This preserves request values, deadlines, and cancellation
+without retaining Gin's pooled context. It does not extend the request lifetime.
+
+Store application values in `Request.Context()`, not with `gin.Context.Set`.
+Do not cast the handler context to `*gin.Context` or use Gin's special context
+keys. Bind URL parameters with `uri` tags; use an `R` variant for raw request access.
+Gin middleware and response rendering still use the Gin context directly.
+
 The public handler abstractions use the same input/output type parameters:
 
 ```go
