@@ -19,10 +19,12 @@ go get github.com/gosoline-project/httpserver
 
 ### Go version and dependency security
 
-Go **1.26.10 or newer** is required. This raises the former Go 1.25.7
-minimum; downstream applications using Go 1.25 must upgrade their toolchain.
-CI reads the minimum from `go.mod`, and `mise.toml` pins the same patched
-release.
+Go **1.26.10 or newer** is required. Consumers on the Go 1.27 branch must use
+**1.27.3 or newer**, not 1.27.0 or 1.27.1: the `go 1.26.10` minimum does not
+upgrade an already-newer toolchain to its patched release. This raises the
+former Go 1.25.7 minimum; downstream applications using Go 1.25 must upgrade
+their toolchain. CI reads the minimum from `go.mod`, and `mise.toml` pins the
+same patched release.
 
 The dependency security refresh keeps Gin 1.11.0, JWT v5.3.0, and Gosoline
 v0.63.5, without changing this library's HTTP or authentication APIs. It
