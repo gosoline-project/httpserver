@@ -41,7 +41,7 @@ func BindR[I, O any](handler func(ctx context.Context, req *http.Request, input 
 			return
 		}
 
-		if output, err = handler(ginCtx, ginCtx.Request, input); err != nil {
+		if output, err = handler(ginCtx.Request.Context(), ginCtx.Request, input); err != nil {
 			reportGinError(ginCtx, err)
 
 			return
@@ -73,7 +73,7 @@ func BindNR[O any](handler func(ctx context.Context, req *http.Request) (O, erro
 		var output O
 		var response Response
 
-		if output, err = handler(ginCtx, ginCtx.Request); err != nil {
+		if output, err = handler(ginCtx.Request.Context(), ginCtx.Request); err != nil {
 			reportGinError(ginCtx, err)
 
 			return
@@ -116,7 +116,7 @@ func BindSseR[I any](handler func(ctx context.Context, req *http.Request, input 
 		writer := NewSseWriter(ginCtx.Request.Context(), ginCtx.Writer)
 		defer writer.Close()
 
-		if err = handler(ginCtx, ginCtx.Request, input, writer); err != nil {
+		if err = handler(ginCtx.Request.Context(), ginCtx.Request, input, writer); err != nil {
 			// If client disconnected, this is a clean exit - no error logging
 			if errors.Is(err, ErrClientDisconnected) {
 				return
@@ -148,7 +148,7 @@ func BindSseNR(handler func(ctx context.Context, req *http.Request, writer *SseW
 		writer := NewSseWriter(ginCtx.Request.Context(), ginCtx.Writer)
 		defer writer.Close()
 
-		if err = handler(ginCtx, ginCtx.Request, writer); err != nil {
+		if err = handler(ginCtx.Request.Context(), ginCtx.Request, writer); err != nil {
 			// If client disconnected, this is a clean exit - no error logging
 			if errors.Is(err, ErrClientDisconnected) {
 				return
@@ -194,7 +194,7 @@ func BindHandleRequest[I any](ginCtx *gin.Context, tags []string, binders []bind
 		}
 	}
 
-	if err := modifyInput(ginCtx, in); err != nil {
+	if err := modifyInput(ginCtx.Request.Context(), in); err != nil {
 		return nil, err
 	}
 
