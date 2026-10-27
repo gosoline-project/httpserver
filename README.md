@@ -17,6 +17,39 @@ A lightweight, opinionated HTTP server helper library built on top of [gin](http
 go get github.com/gosoline-project/httpserver
 ```
 
+### Go version and dependency security
+
+Go **1.26.10 or newer** is required. This raises the former Go 1.25.7
+minimum; downstream applications using Go 1.25 must upgrade their toolchain.
+CI reads the minimum from `go.mod`, and `mise.toml` pins the same patched
+release.
+
+The dependency security refresh keeps Gin 1.11.0, JWT v5.3.0, and Gosoline
+v0.63.5, without changing this library's HTTP or authentication APIs. It
+updates the affected QUIC, OAuth, HTTP/2, gRPC, OpenTelemetry, AWS event-stream,
+compression, and Docker test-harness dependencies to their first fixed
+releases, including any newer versions required by that combined module graph.
+
+The refresh was exercised with real loopback HTTP/1.1, HTTP/2 over TLS, and
+HTTP/3 over QUIC requests, JSON validation, JWT acceptance and rejection,
+OAuth token exchange, and an owned Docker container managed by Dockertest.
+
+The S3 SDK retains its new checksum and response-validation defaults.
+AWS config v1.29.0 is the first release that loads both `when_supported`
+defaults; an owned MinIO integration exercised a checksummed upload and
+validated download without compatibility overrides.
+
+This is not a claim that the entire Gosoline dependency graph is free of
+advisories. A source scan using Go 1.26.10 still reports
+`GO-2026-4518` (`pgproto3/v2`), `GO-2026-5004` (`pgx/v4`), and
+`GO-2026-5046`, `GO-2026-5047`, `GO-2026-5048` (`hamba/avro/v2`)
+through Gosoline's database/test-environment dependencies. Their current
+module paths have no fixed releases; resolving them requires coordinated
+upstream migrations rather than a compatible version pin. The SQL-injection
+advisory concerns pgx's non-default simple protocol. `GO-2026-5932` is a
+module-only finding for the unused `x/crypto/openpgp` packages, not evidence
+that this library imports or calls OpenPGP.
+
 ## Quick Start
 
 Minimal example (from `examples/http-bind`):
