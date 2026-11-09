@@ -10,7 +10,7 @@ require (
 	github.com/go-resty/resty/v2 v2.7.1-0.20230308051516-1578007c3c8d
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/justtrackio/gosoline v0.68.4-0.20261026102448-e669b1bf2ab6
+	github.com/justtrackio/gosoline v0.69.0
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/sys v0.47.0
 	google.golang.org/api v0.215.0
