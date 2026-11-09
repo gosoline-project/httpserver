@@ -12,10 +12,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^NetListener${DOLLAR} mockery --config .mockery-select.yml
 type NetListener interface {
 	net.Listener
 }
 
+//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^NetConn${DOLLAR} mockery --config .mockery-select.yml
 type NetConn interface {
 	net.Conn
 }

@@ -22,11 +22,15 @@ func init() {
 const expectedTestCaseHttpserverSignature = "func (s TestingSuite) TestFunc(AppUnderTest, *resty.Client) error"
 
 // TestingSuiteHttpServerRouterAware lets HTTP server test suites provide route definitions.
+//
+//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^TestingSuiteHttpServerRouterAware${DOLLAR} mockery --config .mockery-select.yml
 type TestingSuiteHttpServerRouterAware interface {
 	SetupHttpServerRouter() RouterFactory
 }
 
 // TestingSuiteHttpServerOptionsAware lets HTTP server test suites provide server options.
+//
+//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^TestingSuiteHttpServerOptionsAware${DOLLAR} mockery --config .mockery-select.yml
 type TestingSuiteHttpServerOptionsAware interface {
 	SetupHttpServerOptions() []ServerOption
 }

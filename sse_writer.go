@@ -14,6 +14,7 @@ import (
 // ErrClientDisconnected is returned when the client has disconnected.
 var ErrClientDisconnected = errors.New("sse: client disconnected")
 
+//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^SseResponseWriter${DOLLAR} mockery --config .mockery-select.yml
 type (
 	// SseEvent represents a Server-Sent Event with optional fields.
 	// According to the SSE spec, only Data is required.

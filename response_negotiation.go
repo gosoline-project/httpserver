@@ -23,6 +23,8 @@ type ResponseRepresentation struct {
 
 // ResponseNegotiator converts a typed handler result into a negotiated HTTP
 // response using the request's Accept header.
+//
+//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^ResponseNegotiator${DOLLAR} mockery --config .mockery-select.yml
 type ResponseNegotiator interface {
 	Render(*http.Request, any) (Response, error)
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/justtrackio/gosoline/pkg/log"
 )
 
+//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^Handler${DOLLAR} mockery --config .mockery-select.yml
 type (
 	Handler[I, O any] interface {
 		Handle(ctx context.Context, input *I) (O, error)

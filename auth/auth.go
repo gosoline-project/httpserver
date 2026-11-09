@@ -11,6 +11,7 @@ import (
 
 const Anonymous = "anon"
 
+//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^Authenticator${DOLLAR} mockery --config ../.mockery-select.yml
 type Authenticator interface {
 	IsValid(ginCtx *gin.Context) (bool, error)
 }
