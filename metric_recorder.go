@@ -45,9 +45,7 @@ type serverMetricRecorder struct {
 }
 
 func newServerMetricRecorder(name string) ServerMetricRecorder {
-	defaults := getMetricRecorderDefaults(name)
-
-	return newServerMetricRecorderWithInterfaces(name, clock.Provider, metric.NewWriter(metricNamespace, defaults...), concurrencyMetricSampleInterval)
+	return newServerMetricRecorderWithInterfaces(name, clock.Provider, metric.NewWriter(metricNamespace), concurrencyMetricSampleInterval)
 }
 
 func newServerMetricRecorderWithInterfaces(name string, clock clock.Clock, writer metric.Writer, sampleInterval time.Duration) ServerMetricRecorder {
@@ -115,31 +113,8 @@ func (r *serverMetricRecorder) buildGaugeDatum(metricName string, value int64) *
 		Dimensions: metric.Dimensions{
 			"name": r.name,
 		},
+		Unit:  metric.UnitCountMaximum,
 		Value: float64(value),
-	}
-}
-
-func getMetricRecorderDefaults(name string) metric.Data {
-	return metric.Data{
-		{
-			Priority:   metric.PriorityHigh,
-			MetricName: MetricHttpConcurrentRequests,
-			Dimensions: metric.Dimensions{
-				"name": name,
-			},
-			Unit:  metric.UnitCountMaximum,
-			Kind:  metric.KindGauge.Build(),
-			Value: 0,
-		},
-		{
-			Priority:   metric.PriorityHigh,
-			MetricName: MetricHttpOpenConnections,
-			Dimensions: metric.Dimensions{
-				"name": name,
-			},
-			Unit:  metric.UnitCountMaximum,
-			Kind:  metric.KindGauge.Build(),
-			Value: 0,
-		},
+		Kind:  metric.KindGauge.Build(),
 	}
 }
