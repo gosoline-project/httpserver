@@ -14,7 +14,6 @@ import (
 // ErrClientDisconnected is returned when the client has disconnected.
 var ErrClientDisconnected = errors.New("sse: client disconnected")
 
-//go:generate mockery
 type (
 	// SseEvent represents a Server-Sent Event with optional fields.
 	// According to the SSE spec, only Data is required.

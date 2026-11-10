@@ -12,12 +12,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-//go:generate mockery
 type NetListener interface {
 	net.Listener
 }
 
-//go:generate mockery
 type NetConn interface {
 	net.Conn
 }

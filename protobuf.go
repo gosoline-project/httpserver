@@ -9,8 +9,6 @@ import (
 )
 
 // ProtobufDecodable allows CreateProtobufHandler to decode the request body via protobuf.
-//
-//go:generate mockery
 type ProtobufDecodable interface {
 	// EmptyMessage should provide an empty instance of the message format to decode from.
 	EmptyMessage() proto.Message
@@ -19,8 +17,6 @@ type ProtobufDecodable interface {
 }
 
 // ProtobufEncodable is required for NewProtobufResponse to create the protobuf response.
-//
-//go:generate mockery
 type ProtobufEncodable interface {
 	// ToMessage turns the response value into a protobuf message representation
 	ToMessage() (proto.Message, error)

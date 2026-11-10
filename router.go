@@ -12,7 +12,6 @@ import (
 	"github.com/justtrackio/gosoline/pkg/log"
 )
 
-//go:generate mockery
 type (
 	Handler[I, O any] interface {
 		Handle(ctx context.Context, input *I) (O, error)

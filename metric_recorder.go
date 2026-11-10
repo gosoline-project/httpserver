@@ -27,8 +27,6 @@ func init() {
 }
 
 // ServerMetricRecorder records active request and connection metrics for a server.
-//
-//go:generate mockery
 type ServerMetricRecorder interface {
 	TrackRequestStarted(ctx context.Context)
 	TrackRequestCompleted(ctx context.Context)

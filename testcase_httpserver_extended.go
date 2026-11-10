@@ -69,8 +69,6 @@ type HttpserverTestCase struct {
 
 // A ToHttpserverTestCaseList can be converted into a list of test cases. You can use this interface instead of concrete
 // test case types when declaring test cases.
-//
-//go:generate mockery
 type ToHttpserverTestCaseList interface {
 	ToTestCaseList() []*HttpserverTestCase
 }

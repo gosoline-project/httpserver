@@ -19,7 +19,6 @@ const (
 	advisorPruneSize = 1000
 )
 
-//go:generate mockery
 type (
 	// ConnectionLifeCycleAdvisor decides whether a client connection should be closed.
 	ConnectionLifeCycleAdvisor interface {

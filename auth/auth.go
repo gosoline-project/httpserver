@@ -11,7 +11,6 @@ import (
 
 const Anonymous = "anon"
 
-//go:generate mockery
 type Authenticator interface {
 	IsValid(ginCtx *gin.Context) (bool, error)
 }

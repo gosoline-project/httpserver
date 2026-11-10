@@ -34,8 +34,6 @@ func headersFromError(err error) http.Header {
 }
 
 // ErrorWithStatus is an error that carries an explicit HTTP status code.
-//
-//go:generate mockery
 type ErrorWithStatus interface {
 	error
 	StatusCode() int

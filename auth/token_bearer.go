@@ -20,7 +20,6 @@ const (
 	AttributeTokenBearer   = "tokenBearer"
 )
 
-//go:generate mockery
 type TokenBearer interface {
 	GetToken() string
 }

@@ -344,7 +344,7 @@ Pull requests welcome. Please include tests for new functionality and keep chang
 
 ## Mock generation
 
-Run `mise exec -- mockery` from the repository root to regenerate the mocks using the single `.mockery.yml` package configuration (`all: true`, recursive). The native `//go:generate mockery` directives are attached to the interfaces; each invokes this same bulk configuration.
+Run `mise exec -- mockery` from the repository root to regenerate the mocks using the single `.mockery.yml` package configuration (`all: true`, recursive).
 
 ## License
 

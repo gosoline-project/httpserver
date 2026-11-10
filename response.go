@@ -7,22 +7,16 @@ import (
 )
 
 // StatusCode is implemented by handler outputs that provide an HTTP status code.
-//
-//go:generate mockery
 type StatusCode interface {
 	StatusCode() int
 }
 
 // HeaderProvider is implemented by handler outputs and errors that provide HTTP headers.
-//
-//go:generate mockery
 type HeaderProvider interface {
 	Header() http.Header
 }
 
 // Response is the typed response returned by bound HTTP handlers.
-//
-//go:generate mockery
 type Response interface {
 	ContentType() string
 	Body() ([]byte, error)
