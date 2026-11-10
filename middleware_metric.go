@@ -35,21 +35,13 @@ var requestDurationHistogram = metric.KindHistogram.WithBuckets([]float64{
 	5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000,
 }).Build()
 
-// NewMetricMiddleware creates request metrics middleware and a setup hook for route defaults.
-func NewMetricMiddleware(name string, metricRecorder ServerMetricRecorder) (middleware gin.HandlerFunc, setupHandler func(definitions []Definition)) {
-	// writer without any defaults until we initialize some defaults and overwrite it
+// NewMetricMiddleware creates request metrics middleware.
+func NewMetricMiddleware(name string, metricRecorder ServerMetricRecorder) gin.HandlerFunc {
 	writer := metric.NewWriter(metricNamespace)
 
-	middleware = func(ginCtx *gin.Context) {
+	return func(ginCtx *gin.Context) {
 		MetricMiddleware(name, ginCtx, writer, metricRecorder)
 	}
-
-	setupHandler = func(definitions []Definition) {
-		defaults := GetMetricMiddlewareDefaults(name, definitions...)
-		writer = metric.NewWriter(metricNamespace, defaults...)
-	}
-
-	return middleware, setupHandler
 }
 
 // MetricMiddleware records request metrics for a Gin context.
@@ -98,7 +90,8 @@ func MetricMiddleware(name string, ginCtx *gin.Context, writer metric.Writer, me
 	}
 
 	data := make(metric.Data, 0, 8)
-	data = append(data,
+	data = append(
+		data,
 		&metric.Datum{
 			Priority:   metric.PriorityHigh,
 			MetricName: MetricHttpRequestDuration,
@@ -161,7 +154,8 @@ func MetricMiddleware(name string, ginCtx *gin.Context, writer metric.Writer, me
 	)
 
 	if WasRequestRejected(ginCtx.Request) {
-		data = append(data,
+		data = append(
+			data,
 			&metric.Datum{
 				Priority:   metric.PriorityHigh,
 				MetricName: MetricHttpRequestsRejected,
@@ -199,55 +193,4 @@ func httpStatusClass(statusCode int) string {
 	default:
 		return metric.DimensionDefault
 	}
-}
-
-// GetMetricMiddlewareDefaults returns zero-valued request and rejected-request counters.
-func GetMetricMiddlewareDefaults(name string, definitions ...Definition) metric.Data {
-	serverDimensions := metric.Dimensions{
-		dimensionServerName: name,
-	}
-	defaults := make(metric.Data, 0, 2+2*len(definitions))
-	defaults = append(defaults, &metric.Datum{
-		Priority:   metric.PriorityHigh,
-		MetricName: metricRequests,
-		Dimensions: serverDimensions,
-		Unit:       metric.UnitCount,
-		Value:      0.0,
-		Kind:       metric.KindCounter.Build(),
-	}, &metric.Datum{
-		Priority:   metric.PriorityHigh,
-		MetricName: MetricHttpRequestsRejected,
-		Dimensions: serverDimensions,
-		Unit:       metric.UnitCount,
-		Value:      0.0,
-		Kind:       metric.KindTotal,
-	})
-
-	for _, definition := range definitions {
-		routeDimensions := metric.Dimensions{
-			dimensionServerName: name,
-			dimensionRoute:      definition.getAbsolutePath(),
-			dimensionMethod:     definition.HttpMethod,
-		}
-		defaults = append(defaults,
-			&metric.Datum{
-				Priority:   metric.PriorityHigh,
-				MetricName: metricRouteRequests,
-				Dimensions: routeDimensions,
-				Unit:       metric.UnitCount,
-				Value:      0.0,
-				Kind:       metric.KindCounter.Build(),
-			},
-			&metric.Datum{
-				Priority:   metric.PriorityHigh,
-				MetricName: MetricHttpRequestsRejected,
-				Dimensions: routeDimensions,
-				Unit:       metric.UnitCount,
-				Value:      0.0,
-				Kind:       metric.KindCounter.Build(),
-			},
-		)
-	}
-
-	return defaults
 }
