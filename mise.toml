@@ -1,5 +1,7 @@
 [tools]
 go = "1.25.7"
+protoc = "25.2"
+"go:google.golang.org/protobuf/cmd/protoc-gen-go" = "1.26.0"
 gofumpt = "0.9.2"
 golangci-lint = "2.10.1"
 mockery = "3.7.0"

@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/gosoline-project/httpserver"
 	httpserverMocks "github.com/gosoline-project/httpserver/mocks"
+	"github.com/justtrackio/gosoline/pkg/funk"
 	"github.com/justtrackio/gosoline/pkg/metric"
 	metricMocks "github.com/justtrackio/gosoline/pkg/metric/mocks"
 	"github.com/stretchr/testify/mock"
@@ -355,11 +356,12 @@ func assertMetricDatum(t *testing.T, data metric.Data, expected metric.Datum) {
 }
 
 func findMetricDatum(data metric.Data, metricName string, dimensions metric.Dimensions) *metric.Datum {
-	for _, datum := range data {
-		if datum != nil && datum.MetricName == metricName && reflect.DeepEqual(datum.Dimensions, dimensions) {
-			return datum
-		}
+	datum, ok := funk.FindFirstFunc(data, func(datum *metric.Datum) bool {
+		return datum != nil && datum.MetricName == metricName && reflect.DeepEqual(datum.Dimensions, dimensions)
+	})
+	if !ok {
+		return nil
 	}
 
-	return nil
+	return datum
 }
