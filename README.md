@@ -75,12 +75,12 @@ func (h *Handler) HandleErr(ctx context.Context) (httpserver.Response, error) {
 
 Run:
 ```bash
-go run ./examples/http-bind
+(cd examples/http-bind && go run .)
 ```
 
 Sample request:
 ```bash
-curl -X POST -H 'Content-Type: application/json' localhost:8080/a -d '{"id":1,"name":"alice"}'
+curl -X POST -H 'Content-Type: application/json' localhost:8088/a -d '{"id":1,"name":"alice"}'
 ```
 
 ## Binding
@@ -292,6 +292,13 @@ r.Use(httpserver.LoggingMiddleware(logger, settings))
 r.Use(httpserver.ErrorMiddleware())
 r.Use(httpserver.RecoveryWithSentry(logger))
 ```
+
+`NewMetricMiddleware` now returns only a `gin.HandlerFunc`; it has no route
+setup hook and does not register zero-valued default metrics. The middleware
+emits only series observed from requests, while real gauge samples—including
+zero values—are retained. The standalone HTTP server creates its Gosoline
+writer with only a namespace via `metric.NewWriter(namespace)`, requiring
+Gosoline PR #1459.
 
 ## Testing
 
