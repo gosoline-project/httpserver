@@ -351,8 +351,8 @@ Pull requests welcome. Please include tests for new functionality and keep chang
 
 ## Mock generation
 
-Run `mise exec -- go generate -run mockery ./...` from the repository root to regenerate mocks using the single `.mockery.yml` package configuration (`all: true`, recursive).
-The full command, `mise exec -- go generate ./...`, also runs the existing protobuf directive and writes outside this checkout to `../suite/testdata`; use it only when that location is intended.
+Run `mise exec -- mockery` from the repository root to regenerate all configured mocks using the project-pinned Mockery CLI and `.mockery.yml`.
+Run `mise exec -- go generate ./...` separately only when the protobuf output location is intended; its existing directive writes to `../suite/testdata`.
 
 ## License
 
