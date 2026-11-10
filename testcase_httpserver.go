@@ -132,34 +132,35 @@ func runTestCaseHttpserver(s suite.TestingSuite, testCase func(suite suite.Testi
 			return
 		}
 
-		suite.RunTestCaseApplication(t, s, suiteConf, environment, func(app suite.AppUnderTest) {
-			var err error
-			var port *int
-
-			if port, err = server.GetPort(); err != nil {
-				assert.FailNow(t, err.Error(), "can not get port of server")
-
-				return
-			}
-
-			url := fmt.Sprintf("http://127.0.0.1:%d", *port)
-			client := resty.New().SetBaseURL(url)
-
-			testCase(s, app, client)
-		}, []suite.Option{
-			suite.WithModule("api", func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
+		suite.RunTestCaseApplication(
+			t, s, suiteConf, environment, func(app suite.AppUnderTest) {
 				var err error
-				var module kernel.Module
+				var port *int
 
-				if module, err = NewServer("default", routerFactory, serverOptions...)(ctx, config, logger); err != nil {
-					return nil, fmt.Errorf("failed to create test http server: %w", err)
+				if port, err = server.GetPort(); err != nil {
+					assert.FailNow(t, err.Error(), "can not get port of server")
+
+					return
 				}
 
-				server = module.(*HttpServer)
+				url := fmt.Sprintf("http://127.0.0.1:%d", *port)
+				client := resty.New().SetBaseURL(url)
 
-				return server, nil
-			}),
-		}...,
+				testCase(s, app, client)
+			}, []suite.Option{
+				suite.WithModule("api", func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
+					var err error
+					var module kernel.Module
+
+					if module, err = NewServer("default", routerFactory, serverOptions...)(ctx, config, logger); err != nil {
+						return nil, fmt.Errorf("failed to create test http server: %w", err)
+					}
+
+					server = module.(*HttpServer)
+
+					return server, nil
+				}),
+			}...,
 		)
 	}, nil
 }

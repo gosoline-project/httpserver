@@ -11,6 +11,8 @@ A lightweight, opinionated HTTP server helper library built on top of [gin](http
 - Simple test helpers and suite integration.
 - Composable router factories for modular service assembly.
 
+See the [HTTP Server reference](https://gosoline-project.github.io/docs/reference/package-httpserver/) and [metric schema reference](https://gosoline-project.github.io/docs/reference/metric-schema/) for metric details.
+
 ## Installation
 
 ```bash
@@ -339,6 +341,11 @@ Handlers created with `httpserver.With` can implement `io.Closer`. The server ca
 ## Contributing
 
 Pull requests welcome. Please include tests for new functionality and keep changes minimal.
+
+## Mock generation
+
+Run `mise exec -- go generate -run mockery ./...` from the repository root to regenerate mocks using the single `.mockery.yml` package configuration (`all: true`, recursive).
+The full command, `mise exec -- go generate ./...`, also runs the existing protobuf directive and writes outside this checkout to `../suite/testdata`; use it only when that location is intended.
 
 ## License
 

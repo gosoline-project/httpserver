@@ -1,33 +1,44 @@
 package httpserver
 
 import (
-	"fmt"
-	"slices"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/justtrackio/gosoline/pkg/funk"
 	"github.com/justtrackio/gosoline/pkg/metric"
 )
 
 const (
-	perRoute = "PerRoute"
-	// MetricHttpRequestCount is the total request count metric name.
-	MetricHttpRequestCount = "HttpRequestCount"
-	// MetricHttpRequestCountPerRoute is the per-route request count metric name.
-	MetricHttpRequestCountPerRoute = "HttpRequestCountPerRoute"
-	// MetricHttpRequestResponseTime is the request duration metric name.
-	MetricHttpRequestResponseTime = "HttpRequestResponseTime"
-	// MetricHttpRequestsRejected is the rejected request count metric name.
-	MetricHttpRequestsRejected = "HttpRequestsRejected"
-	// MetricHttpStatus is the prefix for HTTP status class metric names.
-	MetricHttpStatus = "HttpStatus"
+	// MetricHttpRequestDuration records an HTTP server request's latency with response status.
+	// Request counters report statusless totals; response counters report status by route and server.
+	MetricHttpRequestDuration = "request.duration"
+	// MetricHttpRequestsRejected is the count of requests rejected before handling.
+	MetricHttpRequestsRejected = "rejected.requests"
+
+	metricRequests       = "requests"
+	metricResponses      = "responses"
+	metricRouteResponses = "routed.responses"
+
+	metricRouteRequests = "routed.requests"
+
+	dimensionServerName  = "name"
+	dimensionRoute       = "route"
+	dimensionMethod      = "request.method"
+	dimensionStatusCode  = "response.status_code"
+	dimensionStatusClass = "response.status_class"
 )
+
+// requestDurationHistogram uses the HTTP server request-duration bounds from the
+// OpenTelemetry semantic conventions: https://opentelemetry.io/docs/specs/semconv/http/http-metrics/
+// Bounds are authored in milliseconds and cached once to avoid per-request allocation.
+var requestDurationHistogram = metric.KindHistogram.WithBuckets([]float64{
+	5, 10, 25, 50, 75, 100, 250, 500, 750, 1000, 2500, 5000, 7500, 10000,
+}).Build()
 
 // NewMetricMiddleware creates request metrics middleware and a setup hook for route defaults.
 func NewMetricMiddleware(name string, metricRecorder ServerMetricRecorder) (middleware gin.HandlerFunc, setupHandler func(definitions []Definition)) {
 	// writer without any defaults until we initialize some defaults and overwrite it
-	writer := metric.NewWriter()
+	writer := metric.NewWriter(metricNamespace)
 
 	middleware = func(ginCtx *gin.Context) {
 		MetricMiddleware(name, ginCtx, writer, metricRecorder)
@@ -35,7 +46,7 @@ func NewMetricMiddleware(name string, metricRecorder ServerMetricRecorder) (midd
 
 	setupHandler = func(definitions []Definition) {
 		defaults := GetMetricMiddlewareDefaults(name, definitions...)
-		writer = metric.NewWriter(defaults...)
+		writer = metric.NewWriter(metricNamespace, defaults...)
 	}
 
 	return middleware, setupHandler
@@ -51,7 +62,7 @@ func MetricMiddleware(name string, ginCtx *gin.Context, writer metric.Writer, me
 
 	path := ginCtx.FullPath()
 	if path == "" {
-		// the path was not found, so no need to print anything
+		// The path was not found, so no request metrics are recorded.
 		return
 	}
 
@@ -62,134 +73,181 @@ func MetricMiddleware(name string, ginCtx *gin.Context, writer metric.Writer, me
 
 	requestTimeNano := time.Since(start)
 	requestTimeMillisecond := float64(requestTimeNano) / float64(time.Millisecond)
+	responseStatus := ginCtx.Writer.Status()
+	responseStatusCode := strconv.Itoa(responseStatus)
+	responseStatusClass := httpStatusClass(responseStatus)
+	routeDimensions := metric.Dimensions{
+		dimensionServerName: name,
+		dimensionRoute:      path,
+		dimensionMethod:     method,
+	}
+	serverDimensions := metric.Dimensions{
+		dimensionServerName: name,
+	}
+	responseDimensions := metric.Dimensions{
+		dimensionServerName:  name,
+		dimensionStatusCode:  responseStatusCode,
+		dimensionStatusClass: responseStatusClass,
+	}
+	routedResponseDimensions := metric.Dimensions{
+		dimensionServerName:  name,
+		dimensionRoute:       path,
+		dimensionMethod:      method,
+		dimensionStatusCode:  responseStatusCode,
+		dimensionStatusClass: responseStatusClass,
+	}
 
-	status := ginCtx.Writer.Status() / 100
-	statusMetric := fmt.Sprintf("%s%dXX", MetricHttpStatus, status)
-
-	writer.Write(ginCtx.Request.Context(), createMetricsWithDimensions(metric.Data{
-		{
+	data := make(metric.Data, 0, 8)
+	data = append(data,
+		&metric.Datum{
 			Priority:   metric.PriorityHigh,
-			MetricName: MetricHttpRequestResponseTime,
-			Unit:       metric.UnitMillisecondsAverage,
-			Value:      requestTimeMillisecond,
+			MetricName: MetricHttpRequestDuration,
+			Dimensions: metric.Dimensions{
+				dimensionServerName: name,
+				dimensionRoute:      path,
+				dimensionMethod:     method,
+				dimensionStatusCode: responseStatusCode,
+			},
+			Unit:  metric.UnitMillisecondsAverage,
+			Value: requestTimeMillisecond,
+			Kind:  requestDurationHistogram,
 		},
-		{
+		&metric.Datum{
 			Priority:   metric.PriorityHigh,
-			MetricName: MetricHttpRequestCount,
+			MetricName: metricResponses,
+			Dimensions: responseDimensions,
 			Unit:       metric.UnitCount,
 			Value:      1.0,
+			Kind:       metric.KindCounter.Build(),
 		},
-		{
+		&metric.Datum{
 			Priority:   metric.PriorityHigh,
-			MetricName: statusMetric,
+			MetricName: metricRouteResponses,
+			Dimensions: routedResponseDimensions,
 			Unit:       metric.UnitCount,
 			Value:      1.0,
+			Kind:       metric.KindCounter.Build(),
 		},
-	}, map[string]metric.Dimensions{
-		perRoute: {
-			"Method":     method,
-			"Path":       path,
-			"ServerName": name,
+		&metric.Datum{
+			Priority:   metric.PriorityHigh,
+			MetricName: metricRouteResponses,
+			Dimensions: metric.Dimensions{
+				dimensionServerName:  name,
+				dimensionRoute:       path,
+				dimensionMethod:      method,
+				dimensionStatusCode:  metric.DimensionDefault,
+				dimensionStatusClass: responseStatusClass,
+			},
+			Unit:  metric.UnitCount,
+			Value: 1.0,
+			Kind:  metric.KindTotal,
 		},
-		"": {
-			"ServerName": name,
+		&metric.Datum{
+			Priority:   metric.PriorityHigh,
+			MetricName: metricRequests,
+			Dimensions: serverDimensions,
+			Unit:       metric.UnitCount,
+			Value:      1.0,
+			Kind:       metric.KindCounter.Build(),
 		},
-	}))
+		&metric.Datum{
+			Priority:   metric.PriorityHigh,
+			MetricName: metricRouteRequests,
+			Dimensions: routeDimensions,
+			Unit:       metric.UnitCount,
+			Value:      1.0,
+			Kind:       metric.KindCounter.Build(),
+		},
+	)
 
 	if WasRequestRejected(ginCtx.Request) {
-		writer.Write(ginCtx.Request.Context(), metric.Data{
-			{
+		data = append(data,
+			&metric.Datum{
 				Priority:   metric.PriorityHigh,
 				MetricName: MetricHttpRequestsRejected,
+				Dimensions: routeDimensions,
 				Unit:       metric.UnitCount,
-				Dimensions: map[string]string{
-					"Method":     method,
-					"Path":       path,
-					"ServerName": name,
-				},
-				Value: 1.0,
+				Value:      1.0,
+				Kind:       metric.KindCounter.Build(),
 			},
-			{
+			&metric.Datum{
 				Priority:   metric.PriorityHigh,
 				MetricName: MetricHttpRequestsRejected,
+				Dimensions: serverDimensions,
 				Unit:       metric.UnitCount,
-				Dimensions: map[string]string{
-					"ServerName": name,
-				},
-				Value: 1.0,
-				Kind:  metric.KindTotal,
+				Value:      1.0,
+				Kind:       metric.KindTotal,
 			},
-		})
+		)
+	}
+
+	writer.Write(ginCtx.Request.Context(), data)
+}
+
+func httpStatusClass(statusCode int) string {
+	switch {
+	case statusCode >= 100 && statusCode <= 199:
+		return "1xx"
+	case statusCode >= 200 && statusCode <= 299:
+		return "2xx"
+	case statusCode >= 300 && statusCode <= 399:
+		return "3xx"
+	case statusCode >= 400 && statusCode <= 499:
+		return "4xx"
+	case statusCode >= 500 && statusCode <= 599:
+		return "5xx"
+	default:
+		return metric.DimensionDefault
 	}
 }
 
-// createMetricsWithDimensions is creating a metric.Data set
-// which included each provided metric with each provided set of dimensions.
-// The key of the dimensions map is appended to the metric name, so the name is unique across set of dimensions
-func createMetricsWithDimensions(metrics metric.Data, dimensionsByMetricSuffix map[string]metric.Dimensions) metric.Data {
-	return funk.Flatten(funk.Map(metrics, func(metricDatum *metric.Datum) metric.Data {
-		data := make(metric.Data, 0)
-		for metricNameExtension, dimensions := range dimensionsByMetricSuffix {
-			datum := *metricDatum
-			datum.MetricName += metricNameExtension
-			datum.Dimensions = dimensions
-
-			data = append(data, &datum)
-		}
-
-		return data
-	}))
-}
-
-// GetMetricMiddlewareDefaults returns the default metric data for registered HTTP routes.
+// GetMetricMiddlewareDefaults returns zero-valued request and rejected-request counters.
 func GetMetricMiddlewareDefaults(name string, definitions ...Definition) metric.Data {
-	return slices.Concat(
-		funk.Map(definitions, func(definition Definition) *metric.Datum {
-			return &metric.Datum{
+	serverDimensions := metric.Dimensions{
+		dimensionServerName: name,
+	}
+	defaults := make(metric.Data, 0, 2+2*len(definitions))
+	defaults = append(defaults, &metric.Datum{
+		Priority:   metric.PriorityHigh,
+		MetricName: metricRequests,
+		Dimensions: serverDimensions,
+		Unit:       metric.UnitCount,
+		Value:      0.0,
+		Kind:       metric.KindCounter.Build(),
+	}, &metric.Datum{
+		Priority:   metric.PriorityHigh,
+		MetricName: MetricHttpRequestsRejected,
+		Dimensions: serverDimensions,
+		Unit:       metric.UnitCount,
+		Value:      0.0,
+		Kind:       metric.KindTotal,
+	})
+
+	for _, definition := range definitions {
+		routeDimensions := metric.Dimensions{
+			dimensionServerName: name,
+			dimensionRoute:      definition.getAbsolutePath(),
+			dimensionMethod:     definition.HttpMethod,
+		}
+		defaults = append(defaults,
+			&metric.Datum{
 				Priority:   metric.PriorityHigh,
-				MetricName: MetricHttpRequestCountPerRoute,
-				Dimensions: metric.Dimensions{
-					"Method":     definition.HttpMethod,
-					"Path":       definition.getAbsolutePath(),
-					"ServerName": name,
-				},
-				Unit:  metric.UnitCount,
-				Value: 0.0,
-			}
-		}),
-		funk.Map(definitions, func(definition Definition) *metric.Datum {
-			return &metric.Datum{
+				MetricName: metricRouteRequests,
+				Dimensions: routeDimensions,
+				Unit:       metric.UnitCount,
+				Value:      0.0,
+				Kind:       metric.KindCounter.Build(),
+			},
+			&metric.Datum{
 				Priority:   metric.PriorityHigh,
 				MetricName: MetricHttpRequestsRejected,
-				Dimensions: metric.Dimensions{
-					"Method":     definition.HttpMethod,
-					"Path":       definition.getAbsolutePath(),
-					"ServerName": name,
-				},
-				Unit:  metric.UnitCount,
-				Value: 0.0,
-			}
-		}),
-		metric.Data{
-			{
-				Priority:   metric.PriorityHigh,
-				MetricName: MetricHttpRequestsRejected,
-				Dimensions: metric.Dimensions{
-					"ServerName": name,
-				},
-				Unit:  metric.UnitCount,
-				Value: 0.0,
-				Kind:  metric.KindTotal,
+				Dimensions: routeDimensions,
+				Unit:       metric.UnitCount,
+				Value:      0.0,
+				Kind:       metric.KindCounter.Build(),
 			},
-			{
-				Priority:   metric.PriorityHigh,
-				MetricName: MetricHttpRequestCount,
-				Dimensions: metric.Dimensions{
-					"ServerName": name,
-				},
-				Unit:  metric.UnitCount,
-				Value: 0.0,
-			},
-		},
-	)
+		)
+	}
+
+	return defaults
 }

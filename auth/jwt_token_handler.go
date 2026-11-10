@@ -8,7 +8,6 @@ import (
 	"github.com/justtrackio/gosoline/pkg/cfg"
 )
 
-//go:generate go run github.com/vektra/mockery/v2 --name JwtTokenHandler --with-expecter
 type JwtTokenHandler interface {
 	Sign(user SignUserInput) (*string, error)
 	SignClaims(claims Claims) (*string, error)
