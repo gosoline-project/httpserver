@@ -8,14 +8,14 @@ import (
 	"github.com/justtrackio/gosoline/pkg/cfg"
 )
 
-//go:generate go run github.com/vektra/mockery/v2 --name JwtTokenHandler --with-expecter
+//go:generate mockery
 type JwtTokenHandler interface {
 	Sign(user SignUserInput) (*string, error)
 	SignClaims(claims Claims) (*string, error)
 	Valid(jwtToken string) (bool, *jwt.Token, error)
 }
 
-//go:generate go run github.com/vektra/mockery/v2 --name Claims --with-expecter
+//go:generate mockery
 type Claims interface {
 	jwt.Claims
 	GetRegisteredClaims() jwt.RegisteredClaims

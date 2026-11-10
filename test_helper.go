@@ -12,12 +12,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-//go:generate go run github.com/vektra/mockery/v2 --name NetListener --with-expecter
+//go:generate mockery
 type NetListener interface {
 	net.Listener
 }
 
-//go:generate go run github.com/vektra/mockery/v2 --name NetConn --with-expecter
+//go:generate mockery
 type NetConn interface {
 	net.Conn
 }

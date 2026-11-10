@@ -8,21 +8,21 @@ import (
 
 // StatusCode is implemented by handler outputs that provide an HTTP status code.
 //
-//go:generate go run github.com/vektra/mockery/v2 --name StatusCode --with-expecter
+//go:generate mockery
 type StatusCode interface {
 	StatusCode() int
 }
 
 // HeaderProvider is implemented by handler outputs and errors that provide HTTP headers.
 //
-//go:generate go run github.com/vektra/mockery/v2 --name HeaderProvider --with-expecter
+//go:generate mockery
 type HeaderProvider interface {
 	Header() http.Header
 }
 
 // Response is the typed response returned by bound HTTP handlers.
 //
-//go:generate go run github.com/vektra/mockery/v2 --name Response --with-expecter
+//go:generate mockery
 type Response interface {
 	ContentType() string
 	Body() ([]byte, error)

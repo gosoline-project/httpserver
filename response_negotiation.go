@@ -24,7 +24,7 @@ type ResponseRepresentation struct {
 // ResponseNegotiator converts a typed handler result into a negotiated HTTP
 // response using the request's Accept header.
 //
-//go:generate go run github.com/vektra/mockery/v2 --name ResponseNegotiator --with-expecter
+//go:generate mockery
 type ResponseNegotiator interface {
 	Render(*http.Request, any) (Response, error)
 }

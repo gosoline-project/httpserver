@@ -23,14 +23,14 @@ const expectedTestCaseHttpserverSignature = "func (s TestingSuite) TestFunc(AppU
 
 // TestingSuiteHttpServerRouterAware lets HTTP server test suites provide route definitions.
 //
-//go:generate go run github.com/vektra/mockery/v2 --name TestingSuiteHttpServerRouterAware --with-expecter
+//go:generate mockery
 type TestingSuiteHttpServerRouterAware interface {
 	SetupHttpServerRouter() RouterFactory
 }
 
 // TestingSuiteHttpServerOptionsAware lets HTTP server test suites provide server options.
 //
-//go:generate go run github.com/vektra/mockery/v2 --name TestingSuiteHttpServerOptionsAware --with-expecter
+//go:generate mockery
 type TestingSuiteHttpServerOptionsAware interface {
 	SetupHttpServerOptions() []ServerOption
 }

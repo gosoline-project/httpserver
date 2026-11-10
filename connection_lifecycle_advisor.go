@@ -19,7 +19,7 @@ const (
 	advisorPruneSize = 1000
 )
 
-//go:generate go run github.com/vektra/mockery/v2 --name ConnectionLifeCycleAdvisor --with-expecter
+//go:generate mockery
 type (
 	// ConnectionLifeCycleAdvisor decides whether a client connection should be closed.
 	ConnectionLifeCycleAdvisor interface {

@@ -12,7 +12,7 @@ var defaultModifier = newDefaultModifier()
 
 // Modifier applies post-binding transformations to request input structs.
 //
-//go:generate go run github.com/vektra/mockery/v2 --name Modifier --with-expecter
+//go:generate mockery
 type Modifier interface {
 	Struct(ctx context.Context, v any) error
 }

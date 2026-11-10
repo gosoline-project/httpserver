@@ -11,7 +11,7 @@ import (
 
 const Anonymous = "anon"
 
-//go:generate go run github.com/vektra/mockery/v2 --name Authenticator --with-expecter
+//go:generate mockery
 type Authenticator interface {
 	IsValid(ginCtx *gin.Context) (bool, error)
 }

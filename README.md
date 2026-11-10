@@ -344,9 +344,7 @@ Pull requests welcome. Please include tests for new functionality and keep chang
 
 ## Mock generation
 
-Run `go generate -run 'github.com/vektra/mockery/v2' ./...` to regenerate the selected interface mocks declared beside each interface. To regenerate all discovered interfaces in the HTTP server packages, run `go run github.com/vektra/mockery/v2 --config .mockery-bulk.yml`.
-
-Mockery v2's bulk `all: true` mode also emits an empty `mocks/HttpBody.go` for the `HttpBody` type-set constraint (`string | []byte`). This is not a usable replacement for that constraint.
+Run `mise exec -- mockery` from the repository root to regenerate the mocks using the single `.mockery.yml` package configuration (`all: true`, recursive). The native `//go:generate mockery` directives are attached to the interfaces; each invokes this same bulk configuration.
 
 ## License
 

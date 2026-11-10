@@ -12,7 +12,7 @@ import (
 	"github.com/justtrackio/gosoline/pkg/log"
 )
 
-//go:generate go run github.com/vektra/mockery/v2 --name Handler --with-expecter
+//go:generate mockery
 type (
 	Handler[I, O any] interface {
 		Handle(ctx context.Context, input *I) (O, error)
