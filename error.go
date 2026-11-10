@@ -35,7 +35,7 @@ func headersFromError(err error) http.Header {
 
 // ErrorWithStatus is an error that carries an explicit HTTP status code.
 //
-//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^ErrorWithStatus${DOLLAR} mockery --config .mockery-select.yml
+//go:generate go run github.com/vektra/mockery/v2 --name ErrorWithStatus --with-expecter
 type ErrorWithStatus interface {
 	error
 	StatusCode() int

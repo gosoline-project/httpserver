@@ -13,7 +13,7 @@ import (
 
 // ConnectionPressureManager tracks connection states and can close idle connections under pressure.
 //
-//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^ConnectionPressureManager${DOLLAR} mockery --config .mockery-select.yml
+//go:generate go run github.com/vektra/mockery/v2 --name ConnectionPressureManager --with-expecter
 type ConnectionPressureManager interface {
 	CloseOldestIdleConnection() (bool, error)
 	IdleConnectionAvailable() <-chan struct{}

@@ -12,7 +12,7 @@ import (
 	"github.com/justtrackio/gosoline/pkg/log"
 )
 
-//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^Handler${DOLLAR} mockery --config .mockery-select.yml
+//go:generate go run github.com/vektra/mockery/v2 --name Handler --with-expecter
 type (
 	Handler[I, O any] interface {
 		Handle(ctx context.Context, input *I) (O, error)

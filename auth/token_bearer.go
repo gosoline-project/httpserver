@@ -20,7 +20,7 @@ const (
 	AttributeTokenBearer   = "tokenBearer"
 )
 
-//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^TokenBearer${DOLLAR} mockery --config ../.mockery-select.yml
+//go:generate go run github.com/vektra/mockery/v2 --name TokenBearer --with-expecter
 type TokenBearer interface {
 	GetToken() string
 }

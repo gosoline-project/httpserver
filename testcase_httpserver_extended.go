@@ -70,7 +70,7 @@ type HttpserverTestCase struct {
 // A ToHttpserverTestCaseList can be converted into a list of test cases. You can use this interface instead of concrete
 // test case types when declaring test cases.
 //
-//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^ToHttpserverTestCaseList${DOLLAR} mockery --config .mockery-select.yml
+//go:generate go run github.com/vektra/mockery/v2 --name ToHttpserverTestCaseList --with-expecter
 type ToHttpserverTestCaseList interface {
 	ToTestCaseList() []*HttpserverTestCase
 }

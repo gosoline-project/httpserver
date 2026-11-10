@@ -8,14 +8,14 @@ import (
 	"github.com/justtrackio/gosoline/pkg/cfg"
 )
 
-//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^JwtTokenHandler${DOLLAR} mockery --config ../.mockery-select.yml
+//go:generate go run github.com/vektra/mockery/v2 --name JwtTokenHandler --with-expecter
 type JwtTokenHandler interface {
 	Sign(user SignUserInput) (*string, error)
 	SignClaims(claims Claims) (*string, error)
 	Valid(jwtToken string) (bool, *jwt.Token, error)
 }
 
-//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^Claims${DOLLAR} mockery --config ../.mockery-select.yml
+//go:generate go run github.com/vektra/mockery/v2 --name Claims --with-expecter
 type Claims interface {
 	jwt.Claims
 	GetRegisteredClaims() jwt.RegisteredClaims

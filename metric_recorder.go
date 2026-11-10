@@ -28,7 +28,7 @@ func init() {
 
 // ServerMetricRecorder records active request and connection metrics for a server.
 //
-//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^ServerMetricRecorder${DOLLAR} mockery --config .mockery-select.yml
+//go:generate go run github.com/vektra/mockery/v2 --name ServerMetricRecorder --with-expecter
 type ServerMetricRecorder interface {
 	TrackRequestStarted(ctx context.Context)
 	TrackRequestCompleted(ctx context.Context)

@@ -23,14 +23,14 @@ const expectedTestCaseHttpserverSignature = "func (s TestingSuite) TestFunc(AppU
 
 // TestingSuiteHttpServerRouterAware lets HTTP server test suites provide route definitions.
 //
-//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^TestingSuiteHttpServerRouterAware${DOLLAR} mockery --config .mockery-select.yml
+//go:generate go run github.com/vektra/mockery/v2 --name TestingSuiteHttpServerRouterAware --with-expecter
 type TestingSuiteHttpServerRouterAware interface {
 	SetupHttpServerRouter() RouterFactory
 }
 
 // TestingSuiteHttpServerOptionsAware lets HTTP server test suites provide server options.
 //
-//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^TestingSuiteHttpServerOptionsAware${DOLLAR} mockery --config .mockery-select.yml
+//go:generate go run github.com/vektra/mockery/v2 --name TestingSuiteHttpServerOptionsAware --with-expecter
 type TestingSuiteHttpServerOptionsAware interface {
 	SetupHttpServerOptions() []ServerOption
 }
@@ -136,34 +136,35 @@ func runTestCaseHttpserver(s suite.TestingSuite, testCase func(suite suite.Testi
 			return
 		}
 
-		suite.RunTestCaseApplication(t, s, suiteConf, environment, func(app suite.AppUnderTest) {
-			var err error
-			var port *int
-
-			if port, err = server.GetPort(); err != nil {
-				assert.FailNow(t, err.Error(), "can not get port of server")
-
-				return
-			}
-
-			url := fmt.Sprintf("http://127.0.0.1:%d", *port)
-			client := resty.New().SetBaseURL(url)
-
-			testCase(s, app, client)
-		}, []suite.Option{
-			suite.WithModule("api", func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
+		suite.RunTestCaseApplication(
+			t, s, suiteConf, environment, func(app suite.AppUnderTest) {
 				var err error
-				var module kernel.Module
+				var port *int
 
-				if module, err = NewServer("default", routerFactory, serverOptions...)(ctx, config, logger); err != nil {
-					return nil, fmt.Errorf("failed to create test http server: %w", err)
+				if port, err = server.GetPort(); err != nil {
+					assert.FailNow(t, err.Error(), "can not get port of server")
+
+					return
 				}
 
-				server = module.(*HttpServer)
+				url := fmt.Sprintf("http://127.0.0.1:%d", *port)
+				client := resty.New().SetBaseURL(url)
 
-				return server, nil
-			}),
-		}...,
+				testCase(s, app, client)
+			}, []suite.Option{
+				suite.WithModule("api", func(ctx context.Context, config cfg.Config, logger log.Logger) (kernel.Module, error) {
+					var err error
+					var module kernel.Module
+
+					if module, err = NewServer("default", routerFactory, serverOptions...)(ctx, config, logger); err != nil {
+						return nil, fmt.Errorf("failed to create test http server: %w", err)
+					}
+
+					server = module.(*HttpServer)
+
+					return server, nil
+				}),
+			}...,
 		)
 	}, nil
 }

@@ -19,7 +19,7 @@ const (
 	advisorPruneSize = 1000
 )
 
-//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^ConnectionLifeCycleAdvisor${DOLLAR} mockery --config .mockery-select.yml
+//go:generate go run github.com/vektra/mockery/v2 --name ConnectionLifeCycleAdvisor --with-expecter
 type (
 	// ConnectionLifeCycleAdvisor decides whether a client connection should be closed.
 	ConnectionLifeCycleAdvisor interface {

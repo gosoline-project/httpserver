@@ -10,7 +10,7 @@ import (
 
 // ProtobufDecodable allows CreateProtobufHandler to decode the request body via protobuf.
 //
-//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^ProtobufDecodable${DOLLAR} mockery --config .mockery-select.yml
+//go:generate go run github.com/vektra/mockery/v2 --name ProtobufDecodable --with-expecter
 type ProtobufDecodable interface {
 	// EmptyMessage should provide an empty instance of the message format to decode from.
 	EmptyMessage() proto.Message
@@ -20,7 +20,7 @@ type ProtobufDecodable interface {
 
 // ProtobufEncodable is required for NewProtobufResponse to create the protobuf response.
 //
-//go:generate env MOCKERY_INCLUDE_INTERFACE_REGEX=^ProtobufEncodable${DOLLAR} mockery --config .mockery-select.yml
+//go:generate go run github.com/vektra/mockery/v2 --name ProtobufEncodable --with-expecter
 type ProtobufEncodable interface {
 	// ToMessage turns the response value into a protobuf message representation
 	ToMessage() (proto.Message, error)

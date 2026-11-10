@@ -342,6 +342,12 @@ Handlers created with `httpserver.With` can implement `io.Closer`. The server ca
 
 Pull requests welcome. Please include tests for new functionality and keep changes minimal.
 
+## Mock generation
+
+Run `go generate -run 'github.com/vektra/mockery/v2' ./...` to regenerate the selected interface mocks declared beside each interface. To regenerate all discovered interfaces in the HTTP server packages, run `go run github.com/vektra/mockery/v2 --config .mockery-bulk.yml`.
+
+Mockery v2's bulk `all: true` mode also emits an empty `mocks/HttpBody.go` for the `HttpBody` type-set constraint (`string | []byte`). This is not a usable replacement for that constraint.
+
 ## License
 
 MIT (see LICENSE file if present).
