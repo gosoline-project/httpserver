@@ -46,7 +46,7 @@ func (s *loggingMiddlewareTestSuite) SetupTest() {
 func (s *loggingMiddlewareTestSuite) TestSuccess() {
 	ginCtx := buildRequest()
 
-	s.logger.EXPECT().Info(matcher.Context, "%s %s %s", "GET", "path", "HTTP/1.1")
+	s.logger.EXPECT().Info(matcher.Context, "%s %s %s", "GET", "[unmatched]", "HTTP/1.1")
 
 	s.handler(ginCtx)
 }
@@ -58,7 +58,7 @@ func (s *loggingMiddlewareTestSuite) TestRequestValidationError() {
 
 	s.Require().Error(err)
 
-	s.logger.EXPECT().Warn(matcher.Context, "%s %s %s - validation error: %s", "GET", "path", "HTTP/1.1", "validation: test error")
+	s.logger.EXPECT().Warn(matcher.Context, "%s %s %s - validation error: %s", "GET", "[unmatched]", "HTTP/1.1", "validation: test error")
 
 	s.handler(ginCtx)
 }
@@ -70,7 +70,7 @@ func (s *loggingMiddlewareTestSuite) TestEOFError() {
 
 	s.Require().Error(err)
 
-	s.logger.EXPECT().Info(matcher.Context, "%s %s %s - connection error: %s", "GET", "path", "HTTP/1.1", io.EOF.Error())
+	s.logger.EXPECT().Info(matcher.Context, "%s %s %s - connection error: %s", "GET", "[unmatched]", "HTTP/1.1", io.EOF.Error())
 
 	s.handler(ginCtx)
 }
@@ -85,12 +85,12 @@ func (s *loggingMiddlewareTestSuite) TestBindError() {
 
 	s.Require().Error(err)
 
-	s.logger.EXPECT().Warn(matcher.Context, "%s %s %s - bind error: %s", "GET", "path", "HTTP/1.1", "failed to read body")
+	s.logger.EXPECT().Warn(matcher.Context, "%s %s %s - bind error: %s", "GET", "[unmatched]", "HTTP/1.1", "*errors.errorString")
 
 	s.handler(ginCtx)
 }
 
-func (s *loggingMiddlewareTestSuite) TestBindValidationErrorIncludesInvalidValue() {
+func (s *loggingMiddlewareTestSuite) TestBindValidationErrorIncludesFieldAndRuleOnly() {
 	ginCtx := buildRequest()
 
 	type input struct {
@@ -110,9 +110,9 @@ func (s *loggingMiddlewareTestSuite) TestBindValidationErrorIncludesInvalidValue
 		matcher.Context,
 		"%s %s %s - bind error: %s",
 		"GET",
-		"path",
+		"[unmatched]",
 		"HTTP/1.1",
-		"json: Key: 'input.Value' Error:Field validation for 'Value' failed on the 'oneof' tag; validation details: field=Value tag=oneof value=c param=a b",
+		"field=Value tag=oneof",
 	)
 
 	s.handler(ginCtx)
@@ -128,7 +128,7 @@ func (s *loggingMiddlewareTestSuite) TestRenderError() {
 
 	s.Require().Error(err)
 
-	s.logger.EXPECT().Warn(matcher.Context, "%s %s %s - render error: %s", "GET", "path", "HTTP/1.1", "failed to write body")
+	s.logger.EXPECT().Warn(matcher.Context, "%s %s %s - render error: %s", "GET", "[unmatched]", "HTTP/1.1", "failed to write body")
 
 	s.handler(ginCtx)
 }
@@ -140,7 +140,7 @@ func (s *loggingMiddlewareTestSuite) TestDefaultError() {
 
 	s.Require().Error(err)
 
-	s.logger.EXPECT().Error(matcher.Context, "%s %s %s: %w", "GET", "path", "HTTP/1.1", mock.AnythingOfType("*errors.errorString"))
+	s.logger.EXPECT().Error(matcher.Context, "%s %s %s: %w", "GET", "[unmatched]", "HTTP/1.1", mock.AnythingOfType("*errors.errorString"))
 
 	s.handler(ginCtx)
 }
@@ -152,7 +152,7 @@ func (s *loggingMiddlewareTestSuite) TestClientStatusError() {
 	ginErr := ginCtx.Error(err)
 
 	s.Require().Error(ginErr)
-	s.logger.EXPECT().Warn(matcher.Context, "%s %s %s: %s", "GET", "path", "HTTP/1.1", err)
+	s.logger.EXPECT().Warn(matcher.Context, "%s %s %s: %s", "GET", "[unmatched]", "HTTP/1.1", err)
 
 	s.handler(ginCtx)
 }
@@ -164,7 +164,7 @@ func (s *loggingMiddlewareTestSuite) TestServerStatusError() {
 	ginErr := ginCtx.Error(err)
 
 	s.Require().Error(ginErr)
-	s.logger.EXPECT().Error(matcher.Context, "%s %s %s: %w", "GET", "path", "HTTP/1.1", err)
+	s.logger.EXPECT().Error(matcher.Context, "%s %s %s: %w", "GET", "[unmatched]", "HTTP/1.1", err)
 
 	s.handler(ginCtx)
 }
@@ -191,29 +191,24 @@ func TestLogFields(t *testing.T) {
 	logger := logMocks.NewLogger(t)
 
 	expected := log.Fields{
-		"bytes":            2,
-		"client_ip":        "127.0.0.1",
-		"host":             "host.io",
-		"protocol":         "HTTP/1.1",
-		"request_method":   "GET",
-		"request_path":     "path",
-		"request_path_raw": "path",
-		"request_referer":  "referer",
-		"request_time":     0.25,
-		"request_query":    "foo=bar",
-		"request_query_parameters": map[string]string{
-			"foo": "bar",
-		},
-		"request_user_agent": "test/User-Agent",
-		"scheme":             "https",
-		"status":             200,
+		"bytes":                    2,
+		"client_ip":                "127.0.0.1",
+		"host":                     "host.io",
+		"protocol":                 "HTTP/1.1",
+		"request_method":           "GET",
+		"request_path":             "[unmatched]",
+		"request_time":             0.25,
+		"request_query_parameters": map[string]string{},
+		"request_user_agent":       "test/User-Agent",
+		"scheme":                   "https",
+		"status":                   200,
 	}
 
 	logger.EXPECT().WithFields(mock.AnythingOfType("log.Fields")).Run(func(fields log.Fields) {
 		assert.Equal(t, expected, fields)
 	}).Return(logger)
 
-	logger.EXPECT().Info(matcher.Context, "%s %s %s", "GET", "path", "HTTP/1.1")
+	logger.EXPECT().Info(matcher.Context, "%s %s %s", "GET", "[unmatched]", "HTTP/1.1")
 
 	handler := httpserver.NewLoggingMiddlewareWithInterfaces(logger, httpserver.LoggingSettings{}, clock)
 
@@ -232,10 +227,11 @@ func TestLogEncodedRequestBody(t *testing.T) {
 		assert.Equal(t, "e30=", requestBody)
 	}).Return(logger)
 
-	logger.EXPECT().Info(matcher.Context, "%s %s %s", "GET", "path", "HTTP/1.1")
+	logger.EXPECT().Info(matcher.Context, "%s %s %s", "GET", "[unmatched]", "HTTP/1.1")
 
 	handler := httpserver.NewLoggingMiddlewareWithInterfaces(logger, httpserver.LoggingSettings{
 		RequestBody:       true,
+		RequestBodyFields: []string{"safe"},
 		RequestBodyBase64: true,
 	}, clock.Provider)
 

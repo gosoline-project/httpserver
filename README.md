@@ -13,6 +13,24 @@ A lightweight, opinionated HTTP server helper library built on top of [gin](http
 
 See the [HTTP Server reference](https://gosoline-project.github.io/docs/reference/package-httpserver/) and [metric schema reference](https://gosoline-project.github.io/docs/reference/metric-schema/) for metric details.
 
+## Request-log privacy
+
+Request logs use route templates and omit raw query, referer and body values by
+default. Configure `httpserver.default.logging.request_query_parameters` and
+`request_body_fields` as explicit diagnostic allowlists. Body capture also needs
+`request_body: true`; malformed/non-JSON bodies have no raw fallback.
+Credential-named query/header/body fields remain masked even if allowlisted.
+`request_referer: true` captures a URL with userinfo/query/fragment removed.
+Bind errors record field/rule details or error type, excluding rejected values.
+Handlers still receive the original request.
+
+This changes existing diagnostic output: raw path/query
+fields are removed and legacy `request_body: true` alone no longer records the
+payload. Update dashboards and tests to use route templates and safe fields.
+The implementation requires the coordinated Gosoline privacy APIs; release and
+pin Gosoline before publishing this server version. See Gosoline's
+`pkg/log/PRIVACY.md` for error protection and deployment validation.
+
 ## Installation
 
 ```bash
