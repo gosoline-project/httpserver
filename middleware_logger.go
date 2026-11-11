@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -23,6 +24,9 @@ type logCall struct {
 	logger   log.Logger
 	settings LoggingSettings
 	fields   log.Fields
+	method   string
+	path     string
+	proto    string
 }
 
 // LoggingMiddleware logs incoming HTTP requests and enriches the request context.
@@ -47,9 +51,9 @@ func NewLoggingMiddlewareWithInterfaces(logger log.Logger, settings LoggingSetti
 			})
 		}
 
-		if sessionId := ginCtx.Request.Header.Get(HeaderSessionId); sessionId != "" {
+		if ginCtx.Request.Header.Get(HeaderSessionId) != "" {
 			reqCtx = log.MutateGlobalContextFields(reqCtx, map[string]any{
-				"session_id": sessionId,
+				"session_id": log.Redacted,
 			})
 		}
 
@@ -87,30 +91,34 @@ func (lc *logCall) prepare(ginCtx *gin.Context) {
 	lc.fields["bytes"] = ginCtx.Writer.Size()
 	lc.fields["client_ip"] = ginCtx.ClientIP()
 	lc.fields["host"] = req.Host
-	lc.fields["protocol"] = req.Proto
-	lc.fields["request_method"] = req.Method
-	lc.fields["request_path"] = req.URL.Path
-	lc.fields["request_path_raw"] = getPathRaw(ginCtx)
-	lc.fields["request_query"] = req.URL.RawQuery
-	lc.fields["request_referer"] = req.Referer()
+	lc.method, lc.path, lc.proto = req.Method, ginCtx.FullPath(), req.Proto
+	if lc.path == "" {
+		lc.path = "[unmatched]"
+	}
+	lc.fields["protocol"] = lc.proto
+	lc.fields["request_method"] = lc.method
+	lc.fields["request_path"] = lc.path
+	if lc.settings.RequestReferer {
+		lc.fields["request_referer"] = log.SanitizeURL(req.Referer())
+	}
 	lc.fields["request_user_agent"] = req.UserAgent()
 	lc.fields["scheme"] = req.URL.Scheme
 
 	headers := make(map[string]string)
 	for _, key := range lc.settings.RequestHeaders {
-		headers[key] = req.Header.Get(key)
+		headers[key] = log.RequestHeaderForLog(req.Header, key)
 	}
 
 	if len(headers) > 0 {
 		lc.fields["request_headers"] = headers
 	}
 
-	if !lc.settings.RequestBody {
+	if !lc.settings.RequestBody || len(lc.settings.RequestBodyFields) == 0 {
 		return
 	}
 
 	if buf, err = io.ReadAll(req.Body); err != nil {
-		lc.logger.Warn(req.Context(), "can not read request body: %s", err.Error())
+		lc.logger.Warn(req.Context(), "can not read request body: %s", log.SafeError(err).Error())
 
 		return
 	}
@@ -118,10 +126,25 @@ func (lc *logCall) prepare(ginCtx *gin.Context) {
 	// restore the body so another handler can read it
 	req.Body = io.NopCloser(bytes.NewBuffer(buf))
 
+	var body map[string]any
+	if err := json.Unmarshal(buf, &body); err != nil {
+		// Never fall back to raw payloads on invalid JSON or another content type.
+		return
+	}
+	selected := make(map[string]any)
+	for _, key := range lc.settings.RequestBodyFields {
+		if value, ok := body[key]; ok {
+			selected[key] = value
+		}
+	}
+	safe := log.SanitizeFields(selected)
 	if lc.settings.RequestBodyBase64 {
-		lc.fields["request_body"] = string(base64.Encode(buf))
+		encoded, err := json.Marshal(safe)
+		if err == nil {
+			lc.fields["request_body"] = string(base64.Encode(encoded))
+		}
 	} else {
-		lc.fields["request_body"] = string(buf)
+		lc.fields["request_body"] = safe
 	}
 }
 
@@ -139,8 +162,15 @@ func (lc *logCall) finalize(ginCtx *gin.Context, requestTimeSecond float64) {
 		queryParameters := make(map[string]string)
 		query := ginCtx.Request.URL.Query()
 
-		for k := range query {
-			queryParameters[k] = query.Get(k)
+		for _, key := range lc.settings.RequestQueryParameters {
+			if !query.Has(key) {
+				continue
+			}
+			if log.IsSensitiveField(key) {
+				queryParameters[key] = log.Redacted
+			} else {
+				queryParameters[key] = query.Get(key)
+			}
 		}
 
 		lc.fields["request_query_parameters"] = queryParameters
@@ -148,7 +178,7 @@ func (lc *logCall) finalize(ginCtx *gin.Context, requestTimeSecond float64) {
 
 	ctx := ginCtx.Request.Context()
 	logger := lc.logger.WithFields(lc.fields)
-	method, path, proto := lc.fields["request_method"], lc.fields["request_path"], lc.fields["protocol"]
+	method, path, proto := lc.method, lc.path, lc.proto
 
 	if len(ginCtx.Errors) == 0 {
 		logger.Info(ctx, "%s %s %s", method, path, proto)
@@ -159,19 +189,19 @@ func (lc *logCall) finalize(ginCtx *gin.Context, requestTimeSecond float64) {
 	for _, e := range ginCtx.Errors {
 		switch {
 		case exec.IsRequestCanceled(e):
-			logger.Info(ctx, "%s %s %s - request canceled: %s", method, path, proto, e.Error())
+			logger.Info(ctx, "%s %s %s - request canceled: %s", method, path, proto, log.SafeError(e.Err).Error())
 		case exec.IsConnectionError(e):
-			logger.Info(ctx, "%s %s %s - connection error: %s", method, path, proto, e.Error())
+			logger.Info(ctx, "%s %s %s - connection error: %s", method, path, proto, log.SafeError(e.Err).Error())
 		case e.IsType(gin.ErrorTypeBind):
 			logger.Warn(ctx, "%s %s %s - bind error: %s", method, path, proto, formatBindError(e.Err))
 		case e.IsType(gin.ErrorTypeRender):
-			logger.Warn(ctx, "%s %s %s - render error: %s", method, path, proto, e.Err.Error())
+			logger.Warn(ctx, "%s %s %s - render error: %s", method, path, proto, log.SafeError(e.Err).Error())
 		case isClientStatusError(e.Err):
-			logger.Warn(ctx, "%s %s %s: %s", method, path, proto, e.Err)
+			logger.Warn(ctx, "%s %s %s: %s", method, path, proto, log.SafeError(e.Err))
 		case validation.IsValidationError(e):
-			logger.Warn(ctx, "%s %s %s - validation error: %s", method, path, proto, e.Err.Error())
+			logger.Warn(ctx, "%s %s %s - validation error: %s", method, path, proto, log.SafeError(e.Err).Error())
 		default:
-			logger.Error(ctx, "%s %s %s: %w", method, path, proto, e.Err)
+			logger.Error(ctx, "%s %s %s: %w", method, path, proto, log.SafeError(e.Err))
 		}
 	}
 }
@@ -186,38 +216,15 @@ func isClientStatusError(err error) bool {
 }
 
 func formatBindError(err error) string {
-	var validationErrors validator.ValidationErrors
-	if !errors.As(err, &validationErrors) {
-		return err.Error()
+	var failures validator.ValidationErrors
+	if !errors.As(err, &failures) {
+		// Parser messages may contain rejected input. Keep their type, not the payload.
+		return fmt.Sprintf("%T", err)
+	}
+	details := make([]string, 0, len(failures))
+	for _, failure := range failures {
+		details = append(details, fmt.Sprintf("field=%s tag=%s", failure.Field(), failure.Tag()))
 	}
 
-	details := make([]string, 0, len(validationErrors))
-	for _, vErr := range validationErrors {
-		val := truncateLogValue(fmt.Sprintf("%v", vErr.Value()))
-		details = append(details, fmt.Sprintf("field=%s tag=%s value=%s param=%s", vErr.Field(), vErr.Tag(), val, vErr.Param()))
-	}
-
-	return fmt.Sprintf("%s; validation details: %s", err.Error(), strings.Join(details, "; "))
-}
-
-func truncateLogValue(value string) string {
-	const maxLogValueLength = 256
-
-	if len(value) <= maxLogValueLength {
-		return value
-	}
-
-	return value[:maxLogValueLength] + "..."
-}
-
-func getPathRaw(ginCtx *gin.Context) string {
-	path := ginCtx.Request.URL.Path
-
-	for i := range ginCtx.Params {
-		p := ginCtx.Params[i]
-		k := fmt.Sprintf(":%s", p.Key)
-		path = strings.Replace(path, p.Value, k, 1)
-	}
-
-	return path
+	return strings.Join(details, "; ")
 }
