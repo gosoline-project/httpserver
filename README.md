@@ -368,3 +368,11 @@ The full command, `mise exec -- go generate ./...`, also runs the existing proto
 ## License
 
 MIT (see LICENSE file if present).
+
+Selected request headers use Gosoline's `log.RequestHeaderForLog`: only `Accept`,
+`Accept-Encoding`, `Content-Type`, `Content-Encoding`, `User-Agent`,
+`X-Frontend-Version` and `X-Request-Id` can be captured. Other selected headers are
+masked, including custom authentication headers and `Referer`. Automatic
+`session_id` log context is masked as well. Handler input is unchanged. Use
+`request_referer` for sanitized opt-in referer logging. Protected errors remain
+redacted in every middleware error branch, including buffered failed requests.
