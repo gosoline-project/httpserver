@@ -15,6 +15,8 @@ import (
 	"github.com/gosoline-project/httpserver"
 	"github.com/justtrackio/gosoline/pkg/clock"
 	clockMocks "github.com/justtrackio/gosoline/pkg/clock/mocks"
+	"github.com/justtrackio/gosoline/pkg/ipread"
+	ipreadMocks "github.com/justtrackio/gosoline/pkg/ipread/mocks"
 	"github.com/justtrackio/gosoline/pkg/log"
 	logMocks "github.com/justtrackio/gosoline/pkg/log/mocks"
 	"github.com/justtrackio/gosoline/pkg/test/matcher"
@@ -38,9 +40,10 @@ func TestLoggingMiddlewareTestSuite(t *testing.T) {
 
 func (s *loggingMiddlewareTestSuite) SetupTest() {
 	s.logger = logMocks.NewLogger(s.T())
+	s.logger.EXPECT().WithChannel("http").Return(s.logger).Once()
 	s.logger.EXPECT().WithFields(mock.AnythingOfType("log.Fields")).Return(s.logger)
 
-	s.handler = httpserver.NewLoggingMiddlewareWithInterfaces(s.logger, httpserver.LoggingSettings{}, clock.Provider)
+	s.handler = httpserver.NewLoggingMiddlewareWithInterfaces(s.logger, httpserver.LoggingSettings{}, clock.Provider, nil)
 }
 
 func (s *loggingMiddlewareTestSuite) TestSuccess() {
@@ -188,19 +191,28 @@ func TestLogFields(t *testing.T) {
 	clock.EXPECT().Now().Return(now).Once()
 	clock.EXPECT().Since(now).Return(250 * time.Millisecond).Once()
 
+	reader := ipreadMocks.NewReader(t)
+	reader.EXPECT().City("127.0.0.1").Return(&ipread.GeoCity{
+		City:        "local city",
+		CountryCode: "local country",
+	}, nil).Once()
+
 	logger := logMocks.NewLogger(t)
+	logger.EXPECT().WithChannel("http").Return(logger).Once()
 
 	expected := log.Fields{
-		"bytes":            2,
-		"client_ip":        "127.0.0.1",
-		"host":             "host.io",
-		"protocol":         "HTTP/1.1",
-		"request_method":   "GET",
-		"request_path":     "path",
-		"request_path_raw": "path",
-		"request_referer":  "referer",
-		"request_time":     0.25,
-		"request_query":    "foo=bar",
+		"bytes":             2,
+		"client_ip":         "127.0.0.1",
+		"client_ip_city":    "local city",
+		"client_ip_country": "local country",
+		"host":              "host.io",
+		"protocol":          "HTTP/1.1",
+		"request_method":    "GET",
+		"request_path":      "path",
+		"request_path_raw":  "path",
+		"request_referer":   "referer",
+		"request_time":      0.25,
+		"request_query":     "foo=bar",
 		"request_query_parameters": map[string]string{
 			"foo": "bar",
 		},
@@ -215,7 +227,7 @@ func TestLogFields(t *testing.T) {
 
 	logger.EXPECT().Info(matcher.Context, "%s %s %s", "GET", "path", "HTTP/1.1")
 
-	handler := httpserver.NewLoggingMiddlewareWithInterfaces(logger, httpserver.LoggingSettings{}, clock)
+	handler := httpserver.NewLoggingMiddlewareWithInterfaces(logger, httpserver.LoggingSettings{}, clock, reader)
 
 	handler(ginCtx)
 }
@@ -225,6 +237,7 @@ func TestLogEncodedRequestBody(t *testing.T) {
 	ginCtx.Request.Body = io.NopCloser(strings.NewReader("{}"))
 
 	logger := logMocks.NewLogger(t)
+	logger.EXPECT().WithChannel("http").Return(logger).Once()
 
 	logger.EXPECT().WithFields(mock.AnythingOfType("log.Fields")).Run(func(fields log.Fields) {
 		requestBody, ok := fields["request_body"]
@@ -237,7 +250,7 @@ func TestLogEncodedRequestBody(t *testing.T) {
 	handler := httpserver.NewLoggingMiddlewareWithInterfaces(logger, httpserver.LoggingSettings{
 		RequestBody:       true,
 		RequestBodyBase64: true,
-	}, clock.Provider)
+	}, clock.Provider, nil)
 
 	handler(ginCtx)
 }

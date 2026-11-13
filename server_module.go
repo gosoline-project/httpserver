@@ -84,6 +84,7 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 			tracingInstrumentor            tracing.Instrumentor
 			definitionList                 []Definition
 			samplingMiddleware             gin.HandlerFunc
+			loggingMiddleware              gin.HandlerFunc
 			compressionMiddlewares         []gin.HandlerFunc
 			healthChecker                  kernel.HealthChecker
 			connectionLifeCycleInterceptor gin.HandlerFunc
@@ -95,6 +96,10 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 
 		if samplingMiddleware, err = SamplingMiddleware(ctx, config, logger); err != nil {
 			return nil, fmt.Errorf("could not create sampling middleware: %w", err)
+		}
+
+		if loggingMiddleware, err = ProvideLoggingMiddleware(ctx, config, logger, settings.Logging); err != nil {
+			return nil, fmt.Errorf("could not create logging middleware: %w", err)
 		}
 
 		metricRecorder := newServerMetricRecorder(name)
@@ -114,7 +119,7 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 		router.Use(ResponseNegotiationMiddleware(serverOpts.responseNegotiator))
 		router.Use(samplingMiddleware)
 		router.Use(metricMiddleware)
-		router.Use(LoggingMiddleware(logger, settings.Logging))
+		router.Use(loggingMiddleware)
 		router.Use(compressionMiddlewares...)
 		router.Use(MaxBodySizeMiddleware(settings.MaxBodyBytes))
 		router.Use(ErrorMiddlewareWithHandler(settings.Errors, serverOpts.errorHandler, serverOpts.errorMappers...))

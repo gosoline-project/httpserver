@@ -293,6 +293,27 @@ r.Use(httpserver.ErrorMiddleware())
 r.Use(httpserver.RecoveryWithSentry(logger))
 ```
 
+### IP location logging
+
+The http server will enrich `client_ip` with `client_ip_country` and `client_ip_city` using a named gosoline IP reader:
+
+```yaml
+httpserver:
+  default:
+    logging:
+      ip_reader: default
+
+ipread:
+  default:
+    provider: maxmind
+    database: /path/to/GeoLite2-City.mmdb
+    refresh:
+      enabled: true
+      interval: 24h
+```
+
+An empty `logging.ip_reader` disables enrichment (the default).
+
 ## Testing
 
 Use the included helpers for unit-style handler tests:

@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,10 +11,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/justtrackio/gosoline/pkg/cfg"
 	"github.com/justtrackio/gosoline/pkg/clock"
 	"github.com/justtrackio/gosoline/pkg/encoding/base64"
 	"github.com/justtrackio/gosoline/pkg/exec"
 	"github.com/justtrackio/gosoline/pkg/funk"
+	"github.com/justtrackio/gosoline/pkg/ipread"
 	"github.com/justtrackio/gosoline/pkg/log"
 	"github.com/justtrackio/gosoline/pkg/reqctx"
 	"github.com/justtrackio/gosoline/pkg/validation"
@@ -23,17 +26,26 @@ type logCall struct {
 	logger   log.Logger
 	settings LoggingSettings
 	fields   log.Fields
+	ipReader ipread.Reader
 }
 
-// LoggingMiddleware logs incoming HTTP requests and enriches the request context.
-func LoggingMiddleware(logger log.Logger, settings LoggingSettings) gin.HandlerFunc {
+// ProvideLoggingMiddleware creates request a logging middleware from config settings.
+func ProvideLoggingMiddleware(ctx context.Context, config cfg.Config, logger log.Logger, settings LoggingSettings) (gin.HandlerFunc, error) {
+	var reader ipread.Reader
+	if settings.IpReader != "" {
+		var err error
+		if reader, err = ipread.ProvideReader(ctx, config, logger, settings.IpReader); err != nil {
+			return nil, fmt.Errorf("could not provide logging ip reader %q: %w", settings.IpReader, err)
+		}
+	}
+
+	return NewLoggingMiddlewareWithInterfaces(logger, settings, clock.Provider, reader), nil
+}
+
+// NewLoggingMiddlewareWithInterfaces creates a request logging middleware from dependencies.
+func NewLoggingMiddlewareWithInterfaces(logger log.Logger, settings LoggingSettings, clock clock.Clock, reader ipread.Reader) gin.HandlerFunc {
 	logger = logger.WithChannel("http")
 
-	return NewLoggingMiddlewareWithInterfaces(logger, settings, clock.Provider)
-}
-
-// NewLoggingMiddlewareWithInterfaces creates request logging middleware from dependencies.
-func NewLoggingMiddlewareWithInterfaces(logger log.Logger, settings LoggingSettings, clock clock.Clock) gin.HandlerFunc {
 	return func(ginCtx *gin.Context) {
 		start := clock.Now()
 
@@ -55,7 +67,7 @@ func NewLoggingMiddlewareWithInterfaces(logger log.Logger, settings LoggingSetti
 
 		ginCtx.Request = ginCtx.Request.WithContext(reqCtx)
 
-		lp := newLogCall(logger, settings)
+		lp := newLogCall(logger, settings, reader)
 		lp.prepare(ginCtx)
 
 		ginCtx.Next()
@@ -70,11 +82,12 @@ func NewLoggingMiddlewareWithInterfaces(logger log.Logger, settings LoggingSetti
 	}
 }
 
-func newLogCall(logger log.Logger, settings LoggingSettings) *logCall {
+func newLogCall(logger log.Logger, settings LoggingSettings, reader ipread.Reader) *logCall {
 	return &logCall{
 		logger:   logger,
 		settings: settings,
 		fields:   log.Fields{},
+		ipReader: reader,
 	}
 }
 
@@ -85,7 +98,9 @@ func (lc *logCall) prepare(ginCtx *gin.Context) {
 	req := ginCtx.Request
 
 	lc.fields["bytes"] = ginCtx.Writer.Size()
-	lc.fields["client_ip"] = ginCtx.ClientIP()
+	clientIp := ginCtx.ClientIP()
+	lc.fields["client_ip"] = clientIp
+	lc.addClientLocation(clientIp)
 	lc.fields["host"] = req.Host
 	lc.fields["protocol"] = req.Proto
 	lc.fields["request_method"] = req.Method
@@ -122,6 +137,24 @@ func (lc *logCall) prepare(ginCtx *gin.Context) {
 		lc.fields["request_body"] = string(base64.Encode(buf))
 	} else {
 		lc.fields["request_body"] = string(buf)
+	}
+}
+
+func (lc *logCall) addClientLocation(clientIp string) {
+	if lc.ipReader == nil {
+		return
+	}
+
+	location, err := lc.ipReader.City(clientIp)
+	if err != nil || location == nil {
+		return
+	}
+
+	if location.CountryCode != "" {
+		lc.fields["client_ip_country"] = location.CountryCode
+	}
+	if location.City != "" {
+		lc.fields["client_ip_city"] = location.City
 	}
 }
 
