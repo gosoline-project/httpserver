@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,10 +11,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/justtrackio/gosoline/pkg/cfg"
 	"github.com/justtrackio/gosoline/pkg/clock"
 	"github.com/justtrackio/gosoline/pkg/encoding/base64"
 	"github.com/justtrackio/gosoline/pkg/exec"
 	"github.com/justtrackio/gosoline/pkg/funk"
+	"github.com/justtrackio/gosoline/pkg/ipread"
 	"github.com/justtrackio/gosoline/pkg/log"
 	"github.com/justtrackio/gosoline/pkg/reqctx"
 	"github.com/justtrackio/gosoline/pkg/validation"
@@ -25,15 +28,23 @@ type logCall struct {
 	fields   log.Fields
 }
 
-// LoggingMiddleware logs incoming HTTP requests and enriches the request context.
-func LoggingMiddleware(logger log.Logger, settings LoggingSettings) gin.HandlerFunc {
-	logger = logger.WithChannel("http")
+// ProvideLoggingMiddleware creates request a logging middleware from config settings.
+func ProvideLoggingMiddleware(ctx context.Context, config cfg.Config, logger log.Logger, settings LoggingSettings) (gin.HandlerFunc, error) {
+	var reader ipread.Reader
+	if settings.IpReader != "" {
+		var err error
+		if reader, err = ipread.ProvideReader(ctx, config, logger, settings.IpReader); err != nil {
+			return nil, fmt.Errorf("could not provide logging ip reader %q: %w", settings.IpReader, err)
+		}
+	}
 
-	return NewLoggingMiddlewareWithInterfaces(logger, settings, clock.Provider)
+	return NewLoggingMiddlewareWithInterfaces(logger, settings, clock.Provider, reader), nil
 }
 
-// NewLoggingMiddlewareWithInterfaces creates request logging middleware from dependencies.
-func NewLoggingMiddlewareWithInterfaces(logger log.Logger, settings LoggingSettings, clock clock.Clock) gin.HandlerFunc {
+// NewLoggingMiddlewareWithInterfaces creates a request logging middleware from dependencies.
+func NewLoggingMiddlewareWithInterfaces(logger log.Logger, settings LoggingSettings, clock clock.Clock, reader ipread.Reader) gin.HandlerFunc {
+	logger = logger.WithChannel("http")
+
 	return func(ginCtx *gin.Context) {
 		start := clock.Now()
 
@@ -52,6 +63,9 @@ func NewLoggingMiddlewareWithInterfaces(logger log.Logger, settings LoggingSetti
 				"session_id": sessionId,
 			})
 		}
+
+		// keep IP fields local to this service
+		reqCtx = log.MutateContextFields(reqCtx, getIpFields(ginCtx, reader))
 
 		ginCtx.Request = ginCtx.Request.WithContext(reqCtx)
 
@@ -85,7 +99,6 @@ func (lc *logCall) prepare(ginCtx *gin.Context) {
 	req := ginCtx.Request
 
 	lc.fields["bytes"] = ginCtx.Writer.Size()
-	lc.fields["client_ip"] = ginCtx.ClientIP()
 	lc.fields["host"] = req.Host
 	lc.fields["protocol"] = req.Proto
 	lc.fields["request_method"] = req.Method
@@ -123,6 +136,43 @@ func (lc *logCall) prepare(ginCtx *gin.Context) {
 	} else {
 		lc.fields["request_body"] = string(buf)
 	}
+}
+
+func getIpFields(ginCtx *gin.Context, ipReader ipread.Reader) map[string]any {
+	clientIp := ginCtx.ClientIP() // client IP gets us the leftmost still trusted IP from X-Forwarded-For (if present). All IPs are trusted by default
+	remoteIp := ginCtx.RemoteIP() // Find out the rightmost IP from X-Forwarded-For (if present) as that would be the IP that arrived at our LB
+	if value, ok := ginCtx.Request.Header[HeaderXForwardedFor]; ok {
+		ips := strings.Split(value[0], ",")
+		remoteIp = ips[len(ips)-1]
+	}
+
+	fields := make(map[string]any, 6)
+	fields["client_ip"] = clientIp
+	fields["remote_ip"] = remoteIp
+
+	if ipReader == nil {
+		return fields
+	}
+
+	if location, err := ipReader.City(clientIp); err == nil && location != nil {
+		if location.CountryCode != "" {
+			fields["client_ip_country"] = location.CountryCode
+		}
+		if location.City != "" {
+			fields["client_ip_city"] = location.City
+		}
+	}
+
+	if location, err := ipReader.City(remoteIp); err == nil && location != nil {
+		if location.CountryCode != "" {
+			fields["remote_ip_country"] = location.CountryCode
+		}
+		if location.City != "" {
+			fields["remote_ip_city"] = location.City
+		}
+	}
+
+	return fields
 }
 
 func (lc *logCall) finalize(ginCtx *gin.Context, requestTimeSecond float64) {
