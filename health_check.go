@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/justtrackio/gosoline/pkg/cfg"
+	"github.com/justtrackio/gosoline/pkg/clock"
 	"github.com/justtrackio/gosoline/pkg/dx"
 	"github.com/justtrackio/gosoline/pkg/kernel"
 	"github.com/justtrackio/gosoline/pkg/log"
@@ -52,7 +53,7 @@ func NewHealthCheck() kernel.ModuleFactory {
 func NewHealthCheckWithInterfaces(logger log.Logger, router *gin.Engine, healthChecker kernel.HealthChecker, settings *HealthCheckSettings) *HttpServerHealthCheck {
 	logger = logger.WithChannel("httpserver-health-check")
 
-	router.Use(LoggingMiddleware(logger, LoggingSettings{}))
+	router.Use(NewLoggingMiddlewareWithInterfaces(logger, LoggingSettings{}, clock.Provider, nil))
 	router.GET(settings.Path, buildHealthCheckHandler(logger, healthChecker))
 
 	server := &http.Server{

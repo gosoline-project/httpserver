@@ -15,6 +15,8 @@ import (
 	"github.com/gosoline-project/httpserver"
 	"github.com/justtrackio/gosoline/pkg/clock"
 	clockMocks "github.com/justtrackio/gosoline/pkg/clock/mocks"
+	"github.com/justtrackio/gosoline/pkg/ipread"
+	ipreadMocks "github.com/justtrackio/gosoline/pkg/ipread/mocks"
 	"github.com/justtrackio/gosoline/pkg/log"
 	logMocks "github.com/justtrackio/gosoline/pkg/log/mocks"
 	"github.com/justtrackio/gosoline/pkg/test/matcher"
@@ -38,9 +40,10 @@ func TestLoggingMiddlewareTestSuite(t *testing.T) {
 
 func (s *loggingMiddlewareTestSuite) SetupTest() {
 	s.logger = logMocks.NewLogger(s.T())
+	s.logger.EXPECT().WithChannel("http").Return(s.logger).Once()
 	s.logger.EXPECT().WithFields(mock.AnythingOfType("log.Fields")).Return(s.logger)
 
-	s.handler = httpserver.NewLoggingMiddlewareWithInterfaces(s.logger, httpserver.LoggingSettings{}, clock.Provider)
+	s.handler = httpserver.NewLoggingMiddlewareWithInterfaces(s.logger, httpserver.LoggingSettings{}, clock.Provider, nil)
 }
 
 func (s *loggingMiddlewareTestSuite) TestSuccess() {
@@ -177,6 +180,7 @@ func TestLogFields(t *testing.T) {
 	ginCtx.Request.Header.Set(httpserver.HeaderReferer, "referer")
 	ginCtx.Request.Header.Set(httpserver.HeaderRequestId, "request123")
 	ginCtx.Request.Header.Set(httpserver.HeaderSessionId, "session123")
+	ginCtx.Request.Header.Set(httpserver.HeaderXForwardedFor, "127.0.0.2,127.0.0.3")
 	ginCtx.Request.RemoteAddr = "127.0.0.1:80"
 	ginCtx.Status(http.StatusOK)
 
@@ -185,15 +189,25 @@ func TestLogFields(t *testing.T) {
 
 	now := time.Date(2024, 12, 20, 12, 9, 3, 0, time.UTC)
 
-	clock := clockMocks.NewClock(t)
-	clock.EXPECT().Now().Return(now).Once()
-	clock.EXPECT().Since(now).Return(250 * time.Millisecond).Once()
+	testClock := clockMocks.NewClock(t)
+	testClock.EXPECT().Now().Return(now).Once()
+	testClock.EXPECT().Since(now).Return(250 * time.Millisecond).Once()
+
+	reader := ipreadMocks.NewReader(t)
+	reader.EXPECT().City("127.0.0.2").Return(&ipread.GeoCity{
+		City:        "local city",
+		CountryCode: "local country",
+	}, nil).Once()
+	reader.EXPECT().City("127.0.0.3").Return(&ipread.GeoCity{
+		City:        "remote city",
+		CountryCode: "remote country",
+	}, nil).Once()
 
 	logger := logMocks.NewLogger(t)
+	logger.EXPECT().WithChannel("http").Return(logger).Once()
 
-	expected := log.Fields{
+	logger.EXPECT().WithFields(log.Fields{
 		"bytes":            2,
-		"client_ip":        "127.0.0.1",
 		"host":             "host.io",
 		"protocol":         "HTTP/1.1",
 		"request_method":   "GET",
@@ -208,17 +222,25 @@ func TestLogFields(t *testing.T) {
 		"request_user_agent": "test/User-Agent",
 		"scheme":             "https",
 		"status":             200,
-	}
-
-	logger.EXPECT().WithFields(mock.AnythingOfType("log.Fields")).Run(func(fields log.Fields) {
-		assert.Equal(t, expected, fields)
 	}).Return(logger)
 
 	logger.EXPECT().Info(matcher.Context, "%s %s %s", "GET", "path", "HTTP/1.1")
 
-	handler := httpserver.NewLoggingMiddlewareWithInterfaces(logger, httpserver.LoggingSettings{}, clock)
+	handler := httpserver.NewLoggingMiddlewareWithInterfaces(logger, httpserver.LoggingSettings{}, testClock, reader)
 
 	handler(ginCtx)
+
+	contextFields := log.ContextFieldsResolver(ginCtx.Request.Context())
+	assert.Equal(t, map[string]any{
+		"request_id":        "request123",
+		"session_id":        "session123",
+		"client_ip":         "127.0.0.2",
+		"client_ip_city":    "local city",
+		"client_ip_country": "local country",
+		"remote_ip":         "127.0.0.3",
+		"remote_ip_city":    "remote city",
+		"remote_ip_country": "remote country",
+	}, contextFields)
 }
 
 func TestLogEncodedRequestBody(t *testing.T) {
@@ -226,6 +248,7 @@ func TestLogEncodedRequestBody(t *testing.T) {
 	ginCtx.Request.Body = io.NopCloser(strings.NewReader("{}"))
 
 	logger := logMocks.NewLogger(t)
+	logger.EXPECT().WithChannel("http").Return(logger).Once()
 
 	logger.EXPECT().WithFields(mock.AnythingOfType("log.Fields")).Run(func(fields log.Fields) {
 		requestBody, ok := fields["request_body"]
@@ -238,7 +261,7 @@ func TestLogEncodedRequestBody(t *testing.T) {
 	handler := httpserver.NewLoggingMiddlewareWithInterfaces(logger, httpserver.LoggingSettings{
 		RequestBody:       true,
 		RequestBodyBase64: true,
-	}, clock.Provider)
+	}, clock.Provider, nil)
 
 	handler(ginCtx)
 }
