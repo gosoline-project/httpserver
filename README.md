@@ -28,29 +28,32 @@ former Go 1.25.7 minimum; downstream applications using Go 1.25 must upgrade
 their toolchain. CI reads the minimum from `go.mod`, and `mise.toml` pins the
 same patched release.
 
-The dependency security refresh keeps Gin 1.11.0, JWT v5.3.0, and Gosoline
-v0.63.5, without changing this library's HTTP or authentication APIs. It
-updates the affected QUIC, OAuth, HTTP/2, gRPC, OpenTelemetry, AWS event-stream,
-compression, and Docker test-harness dependencies to their first fixed
-releases, including any newer versions required by that combined module graph.
+The dependency security refresh retains Gin 1.11.0 and JWT v5.3.0. The
+current graph selects Gosoline v0.69.0 and includes its updated metric
+contract. The refresh updates the affected QUIC, OAuth, HTTP/2, gRPC,
+OpenTelemetry, AWS event-stream, compression, and Docker test-harness
+dependencies to their first fixed releases, including any newer versions
+required by that combined module graph.
 
-The refresh was exercised with real loopback HTTP/1.1, HTTP/2 over TLS, and
-HTTP/3 over QUIC requests, JSON validation, JWT acceptance and rejection,
-OAuth token exchange, and an owned Docker container managed by Dockertest.
+Before the Gosoline v0.69.0 update, the refresh was exercised with real
+loopback HTTP/1.1, HTTP/2 over TLS, and HTTP/3 over QUIC requests, JSON
+validation, JWT acceptance and rejection, OAuth token exchange, and an owned
+Docker container managed by Dockertest. Those results describe the earlier
+v0.63.5 graph, not the current dependency graph.
 
 The S3 SDK retains its new checksum and response-validation defaults.
 AWS config v1.29.0 is the first release that loads both `when_supported`
 defaults; an owned MinIO integration exercised a checksummed upload and
-validated download without compatibility overrides.
+validated download without compatibility overrides on the earlier graph.
 
-The released Gosoline OpenTelemetry provider was also started with the
-updated SDK and exported a real span to an owned OpenTelemetry Collector.
-Its resource schema was preserved, and flush and shutdown succeeded.
+The earlier released Gosoline v0.63.5 OpenTelemetry provider was also started
+with the updated SDK and exported a real span to an owned OpenTelemetry
+Collector. Its resource schema was preserved, and flush and shutdown succeeded.
 
 This is not a claim that the entire Gosoline dependency graph is free of
-advisories. A source scan using Go 1.26.10 still reports
-`GO-2026-4518` (`pgproto3/v2`), `GO-2026-5004` (`pgx/v4`), and
-`GO-2026-5046`, `GO-2026-5047`, `GO-2026-5048` (`hamba/avro/v2`)
+advisories. An October 2026 source scan of the earlier v0.63.5 graph using Go
+1.26.10 reported `GO-2026-4518` (`pgproto3/v2`), `GO-2026-5004` (`pgx/v4`),
+and `GO-2026-5046`, `GO-2026-5047`, `GO-2026-5048` (`hamba/avro/v2`)
 through Gosoline's database/test-environment dependencies. Their current
 module paths have no fixed releases; resolving them requires coordinated
 upstream migrations rather than a compatible version pin. The SQL-injection
