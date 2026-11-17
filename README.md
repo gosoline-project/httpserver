@@ -261,17 +261,17 @@ r.Use(httpserver.RecoveryWithSentryAndErrorHandler(logger, handler))
 ```
 
 The mapped `statusCode` is applied by the middleware. An error can implement
-`ErrorWithStatus` to carry an explicit HTTP status code, and can implement
-`Header()` to provide HTTP headers. Error headers are applied to ordinary
-negotiated error bodies.
+`StatusCode` to carry an explicit HTTP status code, and can implement `Header()`
+to provide HTTP headers. Error headers are applied to ordinary negotiated error
+bodies.
 `BindingError` marks request-binding failures and is mapped to HTTP 400. With
 default or private privacy, the middleware returns a generic `bad request` body
 and does not propagate headers from the original error. Public privacy exposes
 the error details and headers. Private 5xx errors use a generic internal server
 error body and do not propagate headers from the original error.
-`NewErrorWithStatus` has been removed. Use `BindingError` for request-binding
-failures. Map application errors with `ErrorMapper` or implement
-`ErrorWithStatus` on the error type.
+`NewErrorWithStatus` and the `ErrorWithStatus` interface have been removed.
+Use `StatusCode` or `ErrorMapper` for application errors, and `BindingError`
+for request-binding failures.
 Returning an explicit `Response` remains an escape hatch for cases that need to
 control the status, headers, content type, or body directly; such responses
 bypass content negotiation.
@@ -282,8 +282,8 @@ Gin context errors are not cleared and remain available for logging.
 
 `WithErrorMapper` adds a status mapper to one server. Pass the option to
 `NewServer`, `NewServerWithSettings`, or `RunServerWithOptions`. Explicit status
-errors that implement `ErrorWithStatus` take precedence over mappers. Mappers run
-in option order before built-in `BindingError`, validation, and default mappings.
+errors that implement `StatusCode` take precedence over mappers. Mappers run in
+option order before built-in `BindingError`, validation, and default mappings.
 The former process-wide `RegisterErrorMapper` API is not available; migrate
 registrations to server options.
 

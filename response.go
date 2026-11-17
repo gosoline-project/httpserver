@@ -6,7 +6,8 @@ import (
 	"github.com/justtrackio/gosoline/pkg/encoding/json"
 )
 
-// StatusCode is implemented by handler outputs that provide an HTTP status code.
+// StatusCode is implemented by handler outputs and errors that provide an HTTP
+// status code.
 type StatusCode interface {
 	StatusCode() int
 }

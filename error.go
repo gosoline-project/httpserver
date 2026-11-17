@@ -34,12 +34,6 @@ func headersFromError(err error) http.Header {
 	return nil
 }
 
-// ErrorWithStatus is an error that carries an explicit HTTP status code.
-type ErrorWithStatus interface {
-	error
-	StatusCode() int
-}
-
 // BindingError marks an error returned while binding request input.
 type BindingError struct {
 	Err error
@@ -76,9 +70,9 @@ func GetErrorStatusCodeWithMappers(err error, mappers ...ErrorMapper) int {
 }
 
 func getErrorStatusCode(err error, mappers ...ErrorMapper) int {
-	var errWithStatus ErrorWithStatus
-	if errors.As(err, &errWithStatus) {
-		return errWithStatus.StatusCode()
+	var statusCode StatusCode
+	if errors.As(err, &statusCode) {
+		return statusCode.StatusCode()
 	}
 
 	if statusCode, handled := errorStatusCodeFromMappers(err, mappers); handled {

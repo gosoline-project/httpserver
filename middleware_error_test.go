@@ -9,7 +9,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gosoline-project/httpserver"
-	"github.com/gosoline-project/httpserver/mocks"
 	"github.com/justtrackio/gosoline/pkg/validation"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -73,9 +72,7 @@ func (s *errorMiddlewareTestSuite) TestPublicErrorsPrivacyReturnsDetailedInterna
 }
 
 func (s *errorMiddlewareTestSuite) TestStatusErrorReturnsStatusAndExposesError() {
-	statusError := mocks.NewErrorWithStatus(s.T())
-	statusError.EXPECT().Error().Return("bad request detail")
-	statusError.EXPECT().StatusCode().Return(http.StatusBadRequest)
+	statusError := &httpserver.BindingError{Err: errors.New("bad request detail")}
 	recorder := s.serveErrorMiddlewareRequest(statusError, httpserver.ErrorMiddlewareWithSettings(httpserver.ErrorsSettings{
 		Privacy: httpserver.ErrorPrivacyPublic,
 	}))
@@ -84,7 +81,7 @@ func (s *errorMiddlewareTestSuite) TestStatusErrorReturnsStatusAndExposesError()
 	s.JSONEq(`{"err":"bad request detail"}`, recorder.Body.String())
 }
 
-func (s *errorMiddlewareTestSuite) TestErrorWithStatusAndHeaders() {
+func (s *errorMiddlewareTestSuite) TestStatusErrorAndHeaders() {
 	err := fmt.Errorf("wrapped: %w", errorWithHeaders{})
 	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddleware())
 
@@ -119,9 +116,7 @@ func (s *errorMiddlewareTestSuite) TestErrorResponseUsesNegotiatedRepresentation
 		Privacy: httpserver.ErrorPrivacyPublic,
 	}))
 	router.GET("/error", func(c *gin.Context) {
-		statusError := mocks.NewErrorWithStatus(s.T())
-		statusError.EXPECT().Error().Return("bad request detail")
-		statusError.EXPECT().StatusCode().Return(http.StatusBadRequest)
+		statusError := &httpserver.BindingError{Err: errors.New("bad request detail")}
 		require.NotNil(s.T(), c.Error(statusError))
 	})
 
@@ -145,9 +140,7 @@ func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerBodyUsesNegotiation() {
 		}{Error: err.Error()}
 	}
 
-	statusError := mocks.NewErrorWithStatus(s.T())
-	statusError.EXPECT().Error().Return("bad request detail")
-	statusError.EXPECT().StatusCode().Return(http.StatusBadRequest)
+	statusError := &httpserver.BindingError{Err: errors.New("bad request detail")}
 	recorder := s.serveErrorMiddlewareRequest(statusError, httpserver.ErrorMiddlewareWithHandler(httpserver.ErrorsSettings{
 		Privacy: httpserver.ErrorPrivacyPublic,
 	}, handler))
@@ -184,9 +177,7 @@ func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerResponsePreservesExplic
 		Privacy: httpserver.ErrorPrivacyPublic,
 	}, handler))
 	router.GET("/error", func(c *gin.Context) {
-		statusError := mocks.NewErrorWithStatus(s.T())
-		statusError.EXPECT().Error().Return("bad request detail")
-		statusError.EXPECT().StatusCode().Return(http.StatusBadRequest)
+		statusError := &httpserver.BindingError{Err: errors.New("bad request detail")}
 		require.NotNil(s.T(), c.Error(statusError))
 	})
 
@@ -219,9 +210,7 @@ func (s *errorMiddlewareTestSuite) TestErrorResponseFallsBackToJSONWhenEncoderFa
 	router.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
 	router.Use(httpserver.ErrorMiddleware())
 	router.GET("/error", func(c *gin.Context) {
-		statusError := mocks.NewErrorWithStatus(s.T())
-		statusError.EXPECT().Error().Return("bad request detail")
-		statusError.EXPECT().StatusCode().Return(http.StatusTeapot)
+		statusError := errorWithHeaders{statusCode: http.StatusTeapot}
 		require.NotNil(s.T(), c.Error(statusError))
 	})
 
@@ -233,7 +222,7 @@ func (s *errorMiddlewareTestSuite) TestErrorResponseFallsBackToJSONWhenEncoderFa
 	s.Equal(http.StatusTeapot, recorder.Code)
 	s.Equal(httpserver.ContentTypeJson, recorder.Header().Get(httpserver.HeaderContentType))
 	s.Equal(httpserver.HeaderAccept, recorder.Header().Get(httpserver.HeaderVary))
-	s.JSONEq(`{"err":"bad request detail"}`, recorder.Body.String())
+	s.JSONEq(`{"err":"error with headers"}`, recorder.Body.String())
 }
 
 func (s *errorMiddlewareTestSuite) TestConfiguredErrorMapperReturnsForbidden() {
@@ -270,14 +259,12 @@ func (s *errorMiddlewareTestSuite) TestWrappedValidationErrorReturnsBadRequestWi
 }
 
 func (s *errorMiddlewareTestSuite) TestStatusErrorTakesPrecedenceOverValidationError() {
-	explicitStatus := mocks.NewErrorWithStatus(s.T())
-	explicitStatus.EXPECT().Error().Return("explicit status")
-	explicitStatus.EXPECT().StatusCode().Return(http.StatusTeapot)
+	explicitStatus := errorWithHeaders{statusCode: http.StatusTeapot}
 	err := errors.Join(explicitStatus, validation.NewError(errors.New("invalid input")))
 	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddleware())
 
 	s.Equal(http.StatusTeapot, recorder.Code)
-	s.JSONEq(`{"err":"explicit status\nvalidation: invalid input"}`, recorder.Body.String())
+	s.JSONEq(`{"err":"error with headers\nvalidation: invalid input"}`, recorder.Body.String())
 }
 
 func (s *errorMiddlewareTestSuite) TestErrorMiddlewarePreservesWrittenResponses() {
