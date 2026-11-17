@@ -11,7 +11,8 @@ import (
 const (
 	// ErrorPrivacyPublic exposes error messages to clients.
 	ErrorPrivacyPublic = "public"
-	// ErrorPrivacyPrivate hides internal server error details from clients.
+	// ErrorPrivacyPrivate hides bad request and internal server error details
+	// from clients.
 	ErrorPrivacyPrivate = "private"
 )
 
@@ -37,6 +38,19 @@ func headersFromError(err error) http.Header {
 type ErrorWithStatus interface {
 	error
 	StatusCode() int
+}
+
+// BindingError marks an error returned while binding request input.
+type BindingError struct {
+	Err error
+}
+
+func (e *BindingError) Error() string {
+	return e.Err.Error()
+}
+
+func (e *BindingError) Unwrap() error {
+	return e.Err
 }
 
 type errorWithStatus struct {
@@ -94,6 +108,11 @@ func getErrorStatusCode(err error, mappers ...ErrorMapper) int {
 
 	if statusCode, handled := errorStatusCodeFromMappers(err, mappers); handled {
 		return statusCode
+	}
+
+	var bindingErr *BindingError
+	if errors.As(err, &bindingErr) {
+		return http.StatusBadRequest
 	}
 
 	if validation.IsValidationError(err) {

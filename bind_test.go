@@ -299,13 +299,15 @@ func TestBindFailureCases(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			handlerCalled := false
-			r := newTestRouter(func(r *gin.Engine) {
-				r.POST("/validated", httpserver.Bind(func(ctx context.Context, input *bindValidatedJsonInput) (httpserver.Response, error) {
-					handlerCalled = true
+			r := gin.New()
+			r.Use(httpserver.ErrorMiddlewareWithSettings(httpserver.ErrorsSettings{
+				Privacy: httpserver.ErrorPrivacyPublic,
+			}))
+			r.POST("/validated", httpserver.Bind(func(ctx context.Context, input *bindValidatedJsonInput) (httpserver.Response, error) {
+				handlerCalled = true
 
-					return httpserver.NewJsonResponse(input), nil
-				}))
-			})
+				return httpserver.NewJsonResponse(input), nil
+			}))
 
 			req := httptest.NewRequest(http.MethodPost, "/validated", strings.NewReader(tc.body))
 			req.Header.Set(httpserver.HeaderContentType, httpserver.ContentTypeApplicationJson)

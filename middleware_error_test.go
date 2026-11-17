@@ -73,7 +73,9 @@ func (s *errorMiddlewareTestSuite) TestPublicErrorsPrivacyReturnsDetailedInterna
 
 func (s *errorMiddlewareTestSuite) TestStatusErrorReturnsStatusAndExposesError() {
 	err := httpserver.NewErrorWithStatus(http.StatusBadRequest, errors.New("bad request detail"))
-	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddleware())
+	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddlewareWithSettings(httpserver.ErrorsSettings{
+		Privacy: httpserver.ErrorPrivacyPublic,
+	}))
 
 	s.Equal(http.StatusBadRequest, recorder.Code)
 	s.JSONEq(`{"err":"bad request detail"}`, recorder.Body.String())
@@ -110,7 +112,9 @@ func (s *errorMiddlewareTestSuite) TestErrorResponseUsesNegotiatedRepresentation
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
-	router.Use(httpserver.ErrorMiddleware())
+	router.Use(httpserver.ErrorMiddlewareWithSettings(httpserver.ErrorsSettings{
+		Privacy: httpserver.ErrorPrivacyPublic,
+	}))
 	router.GET("/error", func(c *gin.Context) {
 		require.NotNil(s.T(), c.Error(httpserver.NewErrorWithStatus(http.StatusBadRequest, errors.New("bad request detail"))))
 	})
@@ -136,7 +140,9 @@ func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerBodyUsesNegotiation() {
 	}
 
 	err := httpserver.NewErrorWithStatus(http.StatusBadRequest, errors.New("bad request detail"))
-	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddlewareWithHandler(httpserver.ErrorsSettings{}, handler))
+	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddlewareWithHandler(httpserver.ErrorsSettings{
+		Privacy: httpserver.ErrorPrivacyPublic,
+	}, handler))
 
 	s.Equal(http.StatusBadRequest, recorder.Code)
 	s.Equal(httpserver.ContentTypeJson, recorder.Header().Get(httpserver.HeaderContentType))
@@ -166,7 +172,9 @@ func (s *errorMiddlewareTestSuite) TestCustomErrorHandlerResponsePreservesExplic
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	router.Use(httpserver.ResponseNegotiationMiddleware(negotiator))
-	router.Use(httpserver.ErrorMiddlewareWithHandler(httpserver.ErrorsSettings{}, handler))
+	router.Use(httpserver.ErrorMiddlewareWithHandler(httpserver.ErrorsSettings{
+		Privacy: httpserver.ErrorPrivacyPublic,
+	}, handler))
 	router.GET("/error", func(c *gin.Context) {
 		require.NotNil(s.T(), c.Error(httpserver.NewErrorWithStatus(http.StatusBadRequest, errors.New("bad request detail"))))
 	})
@@ -236,7 +244,7 @@ func (s *errorMiddlewareTestSuite) TestValidationErrorReturnsBadRequest() {
 	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddleware())
 
 	s.Equal(http.StatusBadRequest, recorder.Code)
-	s.JSONEq(`{"err":"validation: invalid input"}`, recorder.Body.String())
+	s.JSONEq(`{"err":"bad request"}`, recorder.Body.String())
 }
 
 func (s *errorMiddlewareTestSuite) TestWrappedValidationErrorReturnsBadRequestWithoutWrapperMessage() {
@@ -244,7 +252,7 @@ func (s *errorMiddlewareTestSuite) TestWrappedValidationErrorReturnsBadRequestWi
 	recorder := s.serveErrorMiddlewareRequest(err, httpserver.ErrorMiddleware())
 
 	s.Equal(http.StatusBadRequest, recorder.Code)
-	s.JSONEq(`{"err":"service context: validation: invalid input"}`, recorder.Body.String())
+	s.JSONEq(`{"err":"bad request"}`, recorder.Body.String())
 }
 
 func (s *errorMiddlewareTestSuite) TestStatusErrorTakesPrecedenceOverValidationError() {
