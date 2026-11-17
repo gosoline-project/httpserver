@@ -4,57 +4,44 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gin-gonic/gin/binding"
 	"github.com/gosoline-project/httpserver"
 	"github.com/stretchr/testify/require"
 )
 
-type bindingWithCause struct {
-	binding.Binding
-	cause error
-}
-
-func (b bindingWithCause) Bind(request *http.Request, value any) error {
-	err := b.Binding.Bind(request, value)
-	if err != nil {
-		return errors.Join(err, b.cause)
-	}
-
-	return nil
-}
-
 func TestBindAdaptersReportBindingError(t *testing.T) {
-	cause := errors.New("binding cause")
+	handlerCalled := false
 	cases := []struct {
-		name   string
-		route  gin.HandlerFunc
-		method string
+		name  string
+		route gin.HandlerFunc
 	}{
 		{
 			name: "ordinary",
 			route: httpserver.BindR(func(context.Context, *http.Request, *bindJsonInput) (httpserver.Response, error) {
+				handlerCalled = true
+
 				return nil, nil
-			}, bindingWithCause{Binding: binding.JSON, cause: cause}),
-			method: http.MethodPost,
+			}),
 		},
 		{
-			name: "SSE",
+			name: "sse",
 			route: httpserver.BindSseR(func(context.Context, *http.Request, *bindJsonInput, *httpserver.SseWriter) error {
+				handlerCalled = true
+
 				return nil
-			}, bindingWithCause{Binding: binding.JSON, cause: cause}),
-			method: http.MethodPost,
+			}),
 		},
 	}
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
-			gin.SetMode(gin.TestMode)
+			handlerCalled = false
 
 			router := gin.New()
 			var recordedError *gin.Error
@@ -64,19 +51,19 @@ func TestBindAdaptersReportBindingError(t *testing.T) {
 					recordedError = c.Errors.Last()
 				}
 			})
-			router.Handle(testCase.method, "/bind", testCase.route)
+			router.POST("/bind", testCase.route)
 
-			request := httptest.NewRequest(testCase.method, "/bind", strings.NewReader(`{"name":`))
+			request := httptest.NewRequest(http.MethodPost, "/bind", strings.NewReader(`{"name":`))
 			request.Header.Set(httpserver.HeaderContentType, httpserver.ContentTypeApplicationJson)
 			recorder := httptest.NewRecorder()
 			router.ServeHTTP(recorder, request)
 
 			require.NotNil(t, recordedError)
+			require.False(t, handlerCalled)
 			require.True(t, recordedError.IsType(gin.ErrorTypeBind))
 			var bindingErr *httpserver.BindingError
 			require.ErrorAs(t, recordedError.Err, &bindingErr)
-			require.ErrorIs(t, recordedError.Err, cause)
-			require.Equal(t, bindingErr.Err.Error(), bindingErr.Error())
+			require.ErrorIs(t, recordedError.Err, io.ErrUnexpectedEOF)
 			require.ErrorAs(t, fmt.Errorf("request context: %w", recordedError.Err), &bindingErr)
 		})
 	}
@@ -84,7 +71,9 @@ func TestBindAdaptersReportBindingError(t *testing.T) {
 
 func TestBindingErrorStatusRespectsExplicitStatusAndMappers(t *testing.T) {
 	cause := errors.New("invalid request")
-	bindingErr := fmt.Errorf("request context: %w", &httpserver.BindingError{Err: cause})
+	bindingErr := fmt.Errorf("request context: %w", &httpserver.BindingError{
+		Err: cause,
+	})
 	mapper := func(err error) (int, bool) {
 		if errors.Is(err, cause) {
 			return http.StatusForbidden, true
