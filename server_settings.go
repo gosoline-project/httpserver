@@ -29,6 +29,7 @@ type (
 
 	// LoggingSettings configures request logging middleware.
 	LoggingSettings struct {
+		IpReader          string   `cfg:"ip_reader"`
 		RequestBody       bool     `cfg:"request_body"`
 		RequestBodyBase64 bool     `cfg:"request_body_base64"`
 		RequestHeaders    []string `cfg:"request_headers"`
