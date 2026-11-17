@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gosoline-project/httpserver"
+	"github.com/gosoline-project/httpserver/mocks"
 	"github.com/stretchr/testify/require"
 )
 
@@ -84,5 +85,8 @@ func TestBindingErrorStatusRespectsExplicitStatusAndMappers(t *testing.T) {
 
 	require.Equal(t, http.StatusBadRequest, httpserver.GetErrorStatusCode(bindingErr))
 	require.Equal(t, http.StatusForbidden, httpserver.GetErrorStatusCodeWithMappers(bindingErr, mapper))
-	require.Equal(t, http.StatusTeapot, httpserver.GetErrorStatusCodeWithMappers(httpserver.NewErrorWithStatus(http.StatusTeapot, bindingErr), mapper))
+	explicitStatus := mocks.NewErrorWithStatus(t)
+	explicitStatus.EXPECT().StatusCode().Return(http.StatusTeapot)
+
+	require.Equal(t, http.StatusTeapot, httpserver.GetErrorStatusCodeWithMappers(errors.Join(bindingErr, explicitStatus), mapper))
 }

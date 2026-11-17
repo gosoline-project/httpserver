@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/gosoline-project/httpserver"
+	"github.com/gosoline-project/httpserver/mocks"
 	"github.com/justtrackio/gosoline/pkg/clock"
 	clockMocks "github.com/justtrackio/gosoline/pkg/clock/mocks"
 	"github.com/justtrackio/gosoline/pkg/log"
@@ -147,7 +148,10 @@ func (s *loggingMiddlewareTestSuite) TestDefaultError() {
 
 func (s *loggingMiddlewareTestSuite) TestClientStatusError() {
 	ginCtx := buildRequest()
-	err := fmt.Errorf("handler failed: %w", httpserver.NewErrorWithStatus(http.StatusForbidden, fmt.Errorf("forbidden")))
+	statusError := mocks.NewErrorWithStatus(s.T())
+	statusError.EXPECT().Error().Return("forbidden")
+	statusError.EXPECT().StatusCode().Return(http.StatusForbidden)
+	err := fmt.Errorf("handler failed: %w", statusError)
 
 	ginErr := ginCtx.Error(err)
 
@@ -159,7 +163,10 @@ func (s *loggingMiddlewareTestSuite) TestClientStatusError() {
 
 func (s *loggingMiddlewareTestSuite) TestServerStatusError() {
 	ginCtx := buildRequest()
-	err := httpserver.NewErrorWithStatus(http.StatusInternalServerError, fmt.Errorf("internal error"))
+	statusError := mocks.NewErrorWithStatus(s.T())
+	statusError.EXPECT().Error().Return("internal error")
+	statusError.EXPECT().StatusCode().Return(http.StatusInternalServerError)
+	err := statusError
 
 	ginErr := ginCtx.Error(err)
 

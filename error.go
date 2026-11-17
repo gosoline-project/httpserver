@@ -53,31 +53,6 @@ func (e *BindingError) Unwrap() error {
 	return e.Err
 }
 
-type errorWithStatus struct {
-	statusCode int
-	err        error
-}
-
-// NewErrorWithStatus wraps an error with an HTTP status code for the error middleware.
-func NewErrorWithStatus(statusCode int, err error) ErrorWithStatus {
-	return &errorWithStatus{
-		statusCode: statusCode,
-		err:        err,
-	}
-}
-
-func (e errorWithStatus) Error() string {
-	return e.err.Error()
-}
-
-func (e errorWithStatus) StatusCode() int {
-	return e.statusCode
-}
-
-func (e errorWithStatus) Unwrap() error {
-	return e.err
-}
-
 // errorResponseBody keeps the default JSON and XML error representations
 // stable when ordinary error bodies are negotiated.
 type errorResponseBody struct {
