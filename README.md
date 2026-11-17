@@ -36,16 +36,53 @@ OpenTelemetry, AWS event-stream, compression, and Docker test-harness
 dependencies to their first fixed releases, including any newer versions
 required by that combined module graph.
 
-The current graph uses Brotli 1.2.7, Compress 1.20.2, OpenTelemetry log SDK
-and gRPC exporter 0.21.0, and x/net 0.62.0. Compression and telemetry updates
-may change malformed-input handling and exporter behavior; downstream
-integrations should validate their own traffic.
+The current graph uses Brotli 1.2.7, Compress 1.20.2, x/net 0.62.0,
+OpenTelemetry API, SDK, and both OTLP metric exporters 1.45.0, and the
+OpenTelemetry log SDK and HTTP/gRPC exporters 0.21.0. The aligned metric
+exporters support map-valued attributes. Compression and telemetry updates may
+change malformed-input handling and exporter behavior; downstream integrations
+should validate their own traffic and collector configuration.
 
 The selected Gosoline revision also changes its guard interface, removes
 CrateDB support, changes Avro codec and S3 checksum behavior, and updates
 telemetry and compression. Its default Avro codec still has no map-allocation
 limit. Review [Gosoline's compatibility notes](https://github.com/justtrackio/gosoline/blob/dd575e2276c4a048ad9fe1a68857d0c0da899b09/README.md#requirements-and-upgrade-compatibility)
 before upgrading downstream integrations.
+
+Consumers should also review these changes in the selected dependency graph:
+
+- The Go patch releases fix a server crash; malformed HTTP/2, MIME, and
+  certificate inputs can be rejected more strictly by the standard library.
+- QUIC 0.59.1 and QPACK 0.6.0 bound decoded header and trailer sections;
+  oversized headers may receive HTTP 431. Direct QUIC tracing and WebTransport
+  API users must review upstream changes.
+- x/net 0.62.0 tightens HTTP/2, IDNA, DNS and proxy handling. gRPC 1.83.2
+  rejects malformed paths and authorities and changes resolver, flow-control
+  and status handling. OAuth2 0.36.0 changes token and credential handling.
+- OpenTelemetry 1.45 changes attribute types, exporter endpoint and error
+  handling, and the metric SDK's default cardinality limit. Log 0.21 uses the
+  updated value API. Collector configuration, custom instruments, dashboards
+  and code depending on older telemetry APIs need their own migration checks.
+- Updated AWS SDK defaults add S3 request checksums and response validation;
+  custom S3-compatible endpoints must support the new behavior. Docker client
+  changes affect test-harness APIs but do not update the host Docker or runc
+  installation. Direct users of transitive Google, Docker, crypto or
+  compression APIs must review their respective upstream compatibility notes.
+
+The current main branch already includes the metric-v2 contract and the
+request-context and binding-error changes. Review metric names, dimensions,
+duration units and histogram dashboards when upgrading from older releases.
+Bound handlers and input modifiers now receive the HTTP request context, not a
+`*gin.Context`; Gin-only keys and casts must migrate as described below.
+`NewErrorWithStatus` and `ErrorWithStatus` were removed; use `StatusCode` or an
+`ErrorMapper` for application errors. Request-binding failures use
+`BindingError` and map to HTTP 400 before application mappers or a wrapped
+cause's status. Default/private 400 responses return `{"err":"bad request"}`
+without error-provided headers; public privacy exposes the error details and
+headers. Private 5xx responses retain their existing privacy behavior. Error
+middleware does not overwrite a response that was already written or flushed.
+These changes are inherited from main, not introduced by the dependency
+security update.
 
 Before the Gosoline v0.69.0 update, the refresh was exercised with real
 loopback HTTP/1.1, HTTP/2 over TLS, and HTTP/3 over QUIC requests, JSON
@@ -58,6 +95,20 @@ AWS config v1.29.0 is the first release that loads both `when_supported`
 defaults; an owned MinIO integration exercised a checksummed upload and
 validated download without compatibility overrides on the earlier graph.
 
+The selected Gosoline revision and OpenTelemetry SDK both use resource schema
+1.43.0. The provider regression test constructs the actual Gosoline tracer and
+metric writer, exports a span and a metric with a string dimension over local
+OTLP HTTP and gRPC, and checks that both carry this schema. The selected SDK's
+metric exporter test also exercises map-valued attributes over both transports.
+These local tests do not validate an external collector's TLS, authentication,
+retry or deployment configuration.
+
+The current repository suite has also run against the selected dependency
+graph with Go 1.26.11, including the inherited HTTP binding and error tests.
+The provider and profiling regressions were additionally exercised with Go
+1.27.4. Earlier full-suite results on the SDK `1bc0b85` candidate predate its
+exporter-only follow-up to `dd575e2` and are not evidence for the final graph.
+
 The earlier released Gosoline v0.63.5 OpenTelemetry provider was also started
 with the updated SDK and exported a real span to an owned OpenTelemetry
 Collector. Its resource schema was preserved, and flush and shutdown succeeded.
@@ -66,12 +117,12 @@ This is not a claim that the entire Gosoline dependency graph is free of
 advisories. An October 2026 source scan of the earlier v0.63.5 graph using Go
 1.26.10 reported `GO-2026-4518` (`pgproto3/v2`), `GO-2026-5004` (`pgx/v4`),
 and `GO-2026-5046`, `GO-2026-5047`, `GO-2026-5048` (`hamba/avro/v2`)
-through Gosoline's database/test-environment dependencies. Their current
-module paths have no fixed releases; resolving them requires coordinated
-upstream migrations rather than a compatible version pin. The SQL-injection
-advisory concerns pgx's non-default simple protocol. `GO-2026-5932` is a
-module-only finding for the unused `x/crypto/openpgp` packages, not evidence
-that this library imports or calls OpenPGP.
+through the earlier graph's database and test-environment dependencies. The
+selected Gosoline revision migrates away from the affected pgx/v4 and
+`hamba/avro/v2` paths, but its Avro fork still has no default map-allocation
+limit. Do not treat a clean source scan as evidence that this allocation risk
+or the entire transitive dependency graph is resolved. `GO-2026-5932` was a
+module-only finding for the unused `x/crypto/openpgp` packages.
 
 ## Quick Start
 

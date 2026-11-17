@@ -56,7 +56,7 @@ func TestProfilingServer_BindsToLoopbackAddress(t *testing.T) {
 func TestProfilingServer_LogsListenError(t *testing.T) {
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
-	defer listener.Close()
+	t.Cleanup(func() { require.NoError(t, listener.Close()) })
 
 	var output bytes.Buffer
 	handler := log.NewHandlerIoWriter(cfg.New(), log.PriorityTrace, log.FormatterConsole, "test", "15:04:05", &output)
