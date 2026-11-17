@@ -103,7 +103,9 @@ func (s *BindSseTestSuite) TestBindSse_HandlerError() {
 
 func (s *BindSseTestSuite) TestBindSse_BindingError() {
 	router := gin.New()
-	router.Use(httpserver.ErrorMiddleware())
+	router.Use(httpserver.ErrorMiddlewareWithSettings(httpserver.ErrorsSettings{
+		Privacy: httpserver.ErrorPrivacyPublic,
+	}))
 	router.POST("/sse", httpserver.BindSse(func(ctx context.Context, input *sseTestInput, writer *httpserver.SseWriter) error {
 		return writer.Send(input.Message)
 	}))

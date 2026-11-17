@@ -11,7 +11,8 @@ import (
 const (
 	// ErrorPrivacyPublic exposes error messages to clients.
 	ErrorPrivacyPublic = "public"
-	// ErrorPrivacyPrivate hides internal server error details from clients.
+	// ErrorPrivacyPrivate hides bad request and internal server error details
+	// from clients.
 	ErrorPrivacyPrivate = "private"
 )
 
@@ -33,35 +34,21 @@ func headersFromError(err error) http.Header {
 	return nil
 }
 
-// ErrorWithStatus is an error that carries an explicit HTTP status code.
-type ErrorWithStatus interface {
-	error
-	StatusCode() int
+// BindingError marks an error returned while binding request input.
+type BindingError struct {
+	Err error
 }
 
-type errorWithStatus struct {
-	statusCode int
-	err        error
+func (e *BindingError) Error() string {
+	return e.Err.Error()
 }
 
-// NewErrorWithStatus wraps an error with an HTTP status code for the error middleware.
-func NewErrorWithStatus(statusCode int, err error) ErrorWithStatus {
-	return &errorWithStatus{
-		statusCode: statusCode,
-		err:        err,
-	}
+func (*BindingError) StatusCode() int {
+	return http.StatusBadRequest
 }
 
-func (e errorWithStatus) Error() string {
-	return e.err.Error()
-}
-
-func (e errorWithStatus) StatusCode() int {
-	return e.statusCode
-}
-
-func (e errorWithStatus) Unwrap() error {
-	return e.err
+func (e *BindingError) Unwrap() error {
+	return e.Err
 }
 
 // errorResponseBody keeps the default JSON and XML error representations
@@ -87,9 +74,9 @@ func GetErrorStatusCodeWithMappers(err error, mappers ...ErrorMapper) int {
 }
 
 func getErrorStatusCode(err error, mappers ...ErrorMapper) int {
-	var errWithStatus ErrorWithStatus
-	if errors.As(err, &errWithStatus) {
-		return errWithStatus.StatusCode()
+	var statusCode StatusCode
+	if errors.As(err, &statusCode) {
+		return statusCode.StatusCode()
 	}
 
 	if statusCode, handled := errorStatusCodeFromMappers(err, mappers); handled {

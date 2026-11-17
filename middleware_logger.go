@@ -177,12 +177,14 @@ func (lc *logCall) finalize(ginCtx *gin.Context, requestTimeSecond float64) {
 }
 
 func isClientStatusError(err error) bool {
-	var errWithStatus ErrorWithStatus
-	if !errors.As(err, &errWithStatus) {
+	var statusCode StatusCode
+	if !errors.As(err, &statusCode) {
 		return false
 	}
 
-	return errWithStatus.StatusCode() >= http.StatusBadRequest && errWithStatus.StatusCode() < http.StatusInternalServerError
+	code := statusCode.StatusCode()
+
+	return code >= http.StatusBadRequest && code < http.StatusInternalServerError
 }
 
 func formatBindError(err error) string {

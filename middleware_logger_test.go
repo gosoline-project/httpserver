@@ -147,7 +147,8 @@ func (s *loggingMiddlewareTestSuite) TestDefaultError() {
 
 func (s *loggingMiddlewareTestSuite) TestClientStatusError() {
 	ginCtx := buildRequest()
-	err := fmt.Errorf("handler failed: %w", httpserver.NewErrorWithStatus(http.StatusForbidden, fmt.Errorf("forbidden")))
+	statusError := errorWithHeaders{statusCode: http.StatusForbidden}
+	err := fmt.Errorf("handler failed: %w", statusError)
 
 	ginErr := ginCtx.Error(err)
 
@@ -159,7 +160,7 @@ func (s *loggingMiddlewareTestSuite) TestClientStatusError() {
 
 func (s *loggingMiddlewareTestSuite) TestServerStatusError() {
 	ginCtx := buildRequest()
-	err := httpserver.NewErrorWithStatus(http.StatusInternalServerError, fmt.Errorf("internal error"))
+	err := errorWithHeaders{statusCode: http.StatusInternalServerError}
 
 	ginErr := ginCtx.Error(err)
 

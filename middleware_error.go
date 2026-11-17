@@ -35,13 +35,18 @@ func ErrorMiddlewareWithHandler(settings ErrorsSettings, handler ErrorHandler, m
 	return func(c *gin.Context) {
 		c.Next()
 
-		if len(c.Errors) == 0 {
+		if len(c.Errors) == 0 || c.Writer.Written() {
 			return
 		}
 
 		err := c.Errors.Last().Err
 		errorHeaders := headersFromError(err)
 		statusCode := GetErrorStatusCodeWithMappers(err, mappers...)
+
+		if statusCode == http.StatusBadRequest && (settings.Privacy == ErrorPrivacyPrivate || settings.Privacy == "") {
+			err = fmt.Errorf("bad request")
+			errorHeaders = nil
+		}
 
 		if statusCode >= 500 && (settings.Privacy == ErrorPrivacyPrivate || settings.Privacy == "") {
 			err = fmt.Errorf("internal server error")
