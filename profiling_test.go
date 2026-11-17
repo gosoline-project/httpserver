@@ -1,6 +1,7 @@
 package httpserver_test
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net"
@@ -9,6 +10,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gosoline-project/httpserver"
+	"github.com/justtrackio/gosoline/pkg/cfg"
+	"github.com/justtrackio/gosoline/pkg/clock"
+	"github.com/justtrackio/gosoline/pkg/log"
 	logMocks "github.com/justtrackio/gosoline/pkg/log/mocks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,6 +51,25 @@ func TestProfilingServer_BindsToLoopbackAddress(t *testing.T) {
 	case <-time.After(2 * time.Second):
 		t.Fatal("profiling server did not shut down in time")
 	}
+}
+
+func TestProfilingServer_LogsListenError(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer listener.Close()
+
+	var output bytes.Buffer
+	handler := log.NewHandlerIoWriter(cfg.New(), log.PriorityTrace, log.FormatterConsole, "test", "15:04:05", &output)
+	logger := log.NewLoggerWithInterfaces(clock.NewRealClock(), []log.Handler{handler})
+	profiling := httpserver.NewProfilingWithInterfaces(logger, gin.New(), &httpserver.ProfilingSettings{
+		Api: httpserver.ProfilingApiSettings{Port: listener.Addr().(*net.TCPAddr).Port},
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	err = profiling.Run(ctx)
+	require.Error(t, err)
+	require.Contains(t, output.String(), err.Error())
 }
 
 func waitForDial(address string) (net.Conn, error) {

@@ -21,19 +21,31 @@ go get github.com/gosoline-project/httpserver
 
 ### Go version and dependency security
 
-Go **1.26.10 or newer** is required. Consumers on the Go 1.27 branch must use
-**1.27.3 or newer**, not 1.27.0 or 1.27.1: the `go 1.26.10` minimum does not
-upgrade an already-newer toolchain to its patched release. This raises the
-former Go 1.25.7 minimum; downstream applications using Go 1.25 must upgrade
-their toolchain. CI reads the minimum from `go.mod`, and `mise.toml` pins the
-same patched release.
+Go **1.26.11 or newer** is required. Consumers on the Go 1.27 branch must use
+**1.27.4 or newer**: the `go 1.26.11` minimum does not upgrade an
+already-newer toolchain to its patched release. This raises the former Go
+1.25.7 minimum; downstream applications using Go 1.25 must upgrade their
+toolchain. CI reads the minimum from `go.mod`, and `mise.toml` pins the same
+patched release.
 
 The dependency security refresh retains Gin 1.11.0 and JWT v5.3.0. The
-current graph selects Gosoline v0.69.0 and includes its updated metric
-contract. The refresh updates the affected QUIC, OAuth, HTTP/2, gRPC,
+current graph selects Gosoline v0.69.3-0.20261116142819-dd575e2276c4,
+needed for the OpenTelemetry log 0.21 API, and includes its metric contract.
+The refresh updates the affected QUIC, OAuth, HTTP/2, gRPC,
 OpenTelemetry, AWS event-stream, compression, and Docker test-harness
 dependencies to their first fixed releases, including any newer versions
 required by that combined module graph.
+
+The current graph uses Brotli 1.2.7, Compress 1.20.2, OpenTelemetry log SDK
+and gRPC exporter 0.21.0, and x/net 0.62.0. Compression and telemetry updates
+may change malformed-input handling and exporter behavior; downstream
+integrations should validate their own traffic.
+
+The selected Gosoline revision also changes its guard interface, removes
+CrateDB support, changes Avro codec and S3 checksum behavior, and updates
+telemetry and compression. Its default Avro codec still has no map-allocation
+limit. Review [Gosoline's compatibility notes](https://github.com/justtrackio/gosoline/blob/dd575e2276c4a048ad9fe1a68857d0c0da899b09/README.md#requirements-and-upgrade-compatibility)
+before upgrading downstream integrations.
 
 Before the Gosoline v0.69.0 update, the refresh was exercised with real
 loopback HTTP/1.1, HTTP/2 over TLS, and HTTP/3 over QUIC requests, JSON
