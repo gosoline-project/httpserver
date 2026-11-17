@@ -69,7 +69,7 @@ func TestBindAdaptersReportBindingError(t *testing.T) {
 	}
 }
 
-func TestBindingErrorStatusRespectsExplicitStatusAndMappers(t *testing.T) {
+func TestBindingErrorStatusPrecedesMappersAndWrappedStatus(t *testing.T) {
 	cause := errors.New("invalid request")
 	bindingErr := fmt.Errorf("request context: %w", &httpserver.BindingError{
 		Err: cause,
@@ -83,8 +83,11 @@ func TestBindingErrorStatusRespectsExplicitStatusAndMappers(t *testing.T) {
 	}
 
 	require.Equal(t, http.StatusBadRequest, httpserver.GetErrorStatusCode(bindingErr))
-	require.Equal(t, http.StatusForbidden, httpserver.GetErrorStatusCodeWithMappers(bindingErr, mapper))
+	require.Equal(t, http.StatusBadRequest, httpserver.GetErrorStatusCodeWithMappers(bindingErr, mapper))
 	explicitStatus := errorWithHeaders{statusCode: http.StatusTeapot}
 
-	require.Equal(t, http.StatusTeapot, httpserver.GetErrorStatusCodeWithMappers(errors.Join(bindingErr, explicitStatus), mapper))
+	require.Equal(t, http.StatusBadRequest, httpserver.GetErrorStatusCodeWithMappers(errors.Join(bindingErr, explicitStatus), mapper))
+	require.Equal(t, http.StatusBadRequest, httpserver.GetErrorStatusCodeWithMappers(&httpserver.BindingError{
+		Err: explicitStatus,
+	}, mapper))
 }

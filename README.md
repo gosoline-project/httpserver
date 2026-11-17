@@ -264,7 +264,9 @@ The mapped `statusCode` is applied by the middleware. An error can implement
 `StatusCode` to carry an explicit HTTP status code, and can implement `Header()`
 to provide HTTP headers. Error headers are applied to ordinary negotiated error
 bodies.
-`BindingError` marks request-binding failures and is mapped to HTTP 400. With
+`BindingError` marks request-binding failures and implements `StatusCode` with
+HTTP 400. Its status takes precedence over application mappers and status codes
+on its wrapped cause. With
 default or private privacy, the middleware returns a generic `bad request` body
 and does not propagate headers from the original error. Public privacy exposes
 the error details and headers. Private 5xx errors use a generic internal server
@@ -283,7 +285,7 @@ Gin context errors are not cleared and remain available for logging.
 `WithErrorMapper` adds a status mapper to one server. Pass the option to
 `NewServer`, `NewServerWithSettings`, or `RunServerWithOptions`. Explicit status
 errors that implement `StatusCode` take precedence over mappers. Mappers run in
-option order before built-in `BindingError`, validation, and default mappings.
+option order before built-in validation and default mappings.
 The former process-wide `RegisterErrorMapper` API is not available; migrate
 registrations to server options.
 

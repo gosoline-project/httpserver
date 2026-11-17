@@ -43,6 +43,10 @@ func (e *BindingError) Error() string {
 	return e.Err.Error()
 }
 
+func (*BindingError) StatusCode() int {
+	return http.StatusBadRequest
+}
+
 func (e *BindingError) Unwrap() error {
 	return e.Err
 }
@@ -77,11 +81,6 @@ func getErrorStatusCode(err error, mappers ...ErrorMapper) int {
 
 	if statusCode, handled := errorStatusCodeFromMappers(err, mappers); handled {
 		return statusCode
-	}
-
-	var bindingErr *BindingError
-	if errors.As(err, &bindingErr) {
-		return http.StatusBadRequest
 	}
 
 	if validation.IsValidationError(err) {
