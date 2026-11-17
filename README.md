@@ -268,6 +268,10 @@ the original error. Returning an explicit `Response` remains an escape hatch
 for cases that need to control the status, headers, content type, or body
 directly; such responses bypass content negotiation.
 
+If a handler has already written, committed, or flushed a response, the error
+middleware leaves it unchanged rather than rendering another error response.
+Gin context errors are not cleared and remain available for logging.
+
 `WithErrorMapper` adds a status mapper to one server. Pass the option to
 `NewServer`, `NewServerWithSettings`, or `RunServerWithOptions`. Mappers run in
 option order after an explicit `NewErrorWithStatus` and before the built-in

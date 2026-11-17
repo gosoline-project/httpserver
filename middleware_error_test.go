@@ -255,6 +255,72 @@ func (s *errorMiddlewareTestSuite) TestStatusErrorTakesPrecedenceOverValidationE
 	s.JSONEq(`{"err":"validation: invalid input"}`, recorder.Body.String())
 }
 
+func (s *errorMiddlewareTestSuite) TestErrorMiddlewarePreservesWrittenResponses() {
+	err := errors.New("downstream error")
+
+	testCases := []struct {
+		name                string
+		handler             gin.HandlerFunc
+		statusCode          int
+		contentType         string
+		responseHeader      string
+		responseHeaderValue string
+		body                string
+	}{
+		{
+			name: "committed JSON response",
+			handler: func(c *gin.Context) {
+				c.Writer.Header().Set("X-Original-Response", "preserved")
+				require.NotNil(s.T(), c.Error(err))
+				c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "original"})
+			},
+			statusCode:          http.StatusBadRequest,
+			contentType:         "application/json; charset=utf-8",
+			responseHeader:      "X-Original-Response",
+			responseHeaderValue: "preserved",
+			body:                `{"error":"original"}`,
+		},
+		{
+			name: "flushed empty response",
+			handler: func(c *gin.Context) {
+				c.Writer.Header().Set("X-Original-Response", "preserved")
+				c.Status(http.StatusNoContent)
+				c.Writer.WriteHeaderNow()
+				require.NotNil(s.T(), c.Error(err))
+			},
+			statusCode:          http.StatusNoContent,
+			responseHeader:      "X-Original-Response",
+			responseHeaderValue: "preserved",
+		},
+	}
+
+	gin.SetMode(gin.TestMode)
+
+	for _, testCase := range testCases {
+		s.Run(testCase.name, func() {
+			router := gin.New()
+			router.Use(httpserver.ErrorMiddleware())
+			router.GET("/error", testCase.handler)
+
+			recorder := httptest.NewRecorder()
+			request := httptest.NewRequest(http.MethodGet, "/error", http.NoBody)
+			router.ServeHTTP(recorder, request)
+
+			s.Equal(testCase.statusCode, recorder.Code)
+			s.Equal(testCase.contentType, recorder.Header().Get(httpserver.HeaderContentType))
+			s.Equal(testCase.responseHeaderValue, recorder.Header().Get(testCase.responseHeader))
+
+			if testCase.body == "" {
+				s.Empty(recorder.Body.String())
+
+				return
+			}
+
+			s.JSONEq(testCase.body, recorder.Body.String())
+		})
+	}
+}
+
 func (s *errorMiddlewareTestSuite) serveErrorMiddlewareRequest(err error, middleware gin.HandlerFunc) *httptest.ResponseRecorder {
 	s.T().Helper()
 

@@ -35,7 +35,7 @@ func ErrorMiddlewareWithHandler(settings ErrorsSettings, handler ErrorHandler, m
 	return func(c *gin.Context) {
 		c.Next()
 
-		if len(c.Errors) == 0 {
+		if len(c.Errors) == 0 || c.Writer.Written() {
 			return
 		}
 
