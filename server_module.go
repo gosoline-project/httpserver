@@ -80,59 +80,22 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 		gin.SetMode(settings.Mode)
 
 		var (
-			err                            error
-			tracingInstrumentor            tracing.Instrumentor
-			definitionList                 []Definition
-			samplingMiddleware             gin.HandlerFunc
-			loggingMiddleware              gin.HandlerFunc
-			compressionMiddlewares         []gin.HandlerFunc
-			healthChecker                  kernel.HealthChecker
-			connectionLifeCycleInterceptor gin.HandlerFunc
+			err                 error
+			tracingInstrumentor tracing.Instrumentor
+			definitionList      []Definition
+			router              *gin.Engine
 		)
 
 		if tracingInstrumentor, err = tracing.ProvideInstrumentor(ctx, config, logger); err != nil {
-			return nil, fmt.Errorf("can not create tracingInstrumentor: %w", err)
-		}
-
-		if samplingMiddleware, err = SamplingMiddleware(ctx, config, logger); err != nil {
-			return nil, fmt.Errorf("could not create sampling middleware: %w", err)
-		}
-
-		if loggingMiddleware, err = ProvideLoggingMiddleware(ctx, config, logger, settings.Logging); err != nil {
-			return nil, fmt.Errorf("could not create logging middleware: %w", err)
+			return nil, fmt.Errorf("can not create tracing instrumentor: %w", err)
 		}
 
 		metricRecorder := newServerMetricRecorder(name)
 		metricMiddleware, setupMetricMiddleware := NewMetricMiddleware(name, metricRecorder)
 
-		if compressionMiddlewares, err = configureCompression(settings.Compression); err != nil {
-			return nil, fmt.Errorf("could not configure compression: %w", err)
+		if router, err = createRouter(ctx, name, config, logger, settings, serverOpts, metricMiddleware); err != nil {
+			return nil, fmt.Errorf("could not create router: %w", err)
 		}
-
-		if connectionLifeCycleInterceptor, err = ProvideConnectionLifeCycleInterceptor(ctx, config, logger, name); err != nil {
-			return nil, fmt.Errorf("could not provide connection life cycle interceptor: %w", err)
-		}
-
-		router := gin.New()
-		router.ContextWithFallback = true
-		router.UseRawPath = settings.Router.UseRawPath
-		router.Use(ResponseNegotiationMiddleware(serverOpts.responseNegotiator))
-		router.Use(samplingMiddleware)
-		router.Use(metricMiddleware)
-		router.Use(loggingMiddleware)
-		router.Use(compressionMiddlewares...)
-		router.Use(MaxBodySizeMiddleware(settings.MaxBodyBytes))
-		router.Use(ErrorMiddlewareWithHandler(settings.Errors, serverOpts.errorHandler, serverOpts.errorMappers...))
-		router.Use(RecoveryWithSentryAndErrorHandler(logger, serverOpts.errorHandler))
-		router.Use(location.Default())
-		router.Use(connectionLifeCycleInterceptor)
-
-		if healthChecker, err = kernel.GetHealthChecker(ctx); err != nil {
-			return nil, fmt.Errorf("can not get health checker: %w", err)
-		}
-		router.GET("/health", buildHealthCheckHandler(logger, healthChecker))
-		router.Use(ConcurrentRequestLimitMiddleware(settings.Concurrency))
-		router.Use(ChaosMiddleware(ctx, logger, settings.Chaos))
 
 		definitions := &Router{}
 		if err = definer(ctx, config, logger.WithChannel("handler"), definitions); err != nil {
@@ -151,6 +114,76 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 
 		return newWithInterfaces(ctx, logger, router, tracingInstrumentor, settings, metricRecorder, definitions.handlerClosers)
 	}
+}
+
+func createRouter(
+	ctx context.Context,
+	name string,
+	config cfg.Config,
+	logger log.Logger,
+	settings *Settings,
+	serverOpts *serverOptions,
+	metricMiddleware gin.HandlerFunc,
+) (*gin.Engine, error) {
+	var (
+		err                            error
+		samplingMiddleware             gin.HandlerFunc
+		loggingMiddleware              gin.HandlerFunc
+		compressionMiddlewares         []gin.HandlerFunc
+		healthChecker                  kernel.HealthChecker
+		connectionLifeCycleInterceptor gin.HandlerFunc
+		setTrustedProxiesMiddleware    gin.HandlerFunc
+	)
+
+	if samplingMiddleware, err = SamplingMiddleware(ctx, config, logger); err != nil {
+		return nil, fmt.Errorf("could not create sampling middleware: %w", err)
+	}
+
+	if loggingMiddleware, err = ProvideLoggingMiddleware(ctx, config, logger, settings.Logging); err != nil {
+		return nil, fmt.Errorf("could not create logging middleware: %w", err)
+	}
+
+	if compressionMiddlewares, err = configureCompression(settings.Compression); err != nil {
+		return nil, fmt.Errorf("could not configure compression: %w", err)
+	}
+
+	if connectionLifeCycleInterceptor, err = ProvideConnectionLifeCycleInterceptor(ctx, config, logger, name); err != nil {
+		return nil, fmt.Errorf("could not provide connection life cycle interceptor: %w", err)
+	}
+
+	if setTrustedProxiesMiddleware, err = NewSetTrustedProxiesMiddleware(settings.TrustedCIDRs); err != nil {
+		return nil, fmt.Errorf("could not create trusted proxies middleware: %w", err)
+	}
+
+	router := gin.New()
+	if err = router.SetTrustedProxies(settings.TrustedCIDRs); err != nil {
+		return nil, fmt.Errorf("could not set trusted proxies: %w", err)
+	}
+
+	router.ContextWithFallback = true
+	router.UseRawPath = settings.Router.UseRawPath
+
+	// make sure the first middleware we use makes the trusted proxies available for any downstream handlers and middlewares
+	router.Use(setTrustedProxiesMiddleware)
+	router.Use(ResponseNegotiationMiddleware(serverOpts.responseNegotiator))
+	router.Use(samplingMiddleware)
+	router.Use(metricMiddleware)
+	router.Use(loggingMiddleware)
+	router.Use(compressionMiddlewares...)
+	router.Use(MaxBodySizeMiddleware(settings.MaxBodyBytes))
+	router.Use(ErrorMiddlewareWithHandler(settings.Errors, serverOpts.errorHandler, serverOpts.errorMappers...))
+	router.Use(RecoveryWithSentryAndErrorHandler(logger, serverOpts.errorHandler))
+	router.Use(location.Default())
+	router.Use(connectionLifeCycleInterceptor)
+
+	if healthChecker, err = kernel.GetHealthChecker(ctx); err != nil {
+		return nil, fmt.Errorf("can not get health checker: %w", err)
+	}
+	router.GET("/health", buildHealthCheckHandler(logger, healthChecker))
+	router.Use(ConcurrentRequestLimitMiddleware(settings.Concurrency))
+	router.Use(ChaosMiddleware(ctx, logger, settings.Chaos))
+
+	return router, nil
 }
 
 // NewWithInterfaces creates an HttpServer from already constructed dependencies.

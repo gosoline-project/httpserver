@@ -64,8 +64,10 @@ func NewLoggingMiddlewareWithInterfaces(logger log.Logger, settings LoggingSetti
 			})
 		}
 
-		// keep IP fields local to this service
-		reqCtx = log.MutateContextFields(reqCtx, getIpFields(ginCtx, reader))
+		if ipFields, err := getIpFields(ginCtx, reader); err == nil {
+			// keep IP fields local to this service
+			reqCtx = log.MutateContextFields(reqCtx, ipFields)
+		}
 
 		ginCtx.Request = ginCtx.Request.WithContext(reqCtx)
 
@@ -111,7 +113,11 @@ func (lc *logCall) prepare(ginCtx *gin.Context) {
 
 	headers := make(map[string]string)
 	for _, key := range lc.settings.RequestHeaders {
-		headers[key] = req.Header.Get(key)
+		if values := req.Header.Values(key); len(values) == 1 {
+			headers[key] = values[0]
+		} else {
+			headers[key] = strings.Join(values, "\n")
+		}
 	}
 
 	if len(headers) > 0 {
@@ -138,12 +144,17 @@ func (lc *logCall) prepare(ginCtx *gin.Context) {
 	}
 }
 
-func getIpFields(ginCtx *gin.Context, ipReader ipread.Reader) map[string]any {
-	clientIp := ginCtx.ClientIP() // client IP gets us the leftmost still trusted IP from X-Forwarded-For (if present). All IPs are trusted by default
-	remoteIp := ginCtx.RemoteIP() // Find out the rightmost IP from X-Forwarded-For (if present) as that would be the IP that arrived at our LB
-	if value, ok := ginCtx.Request.Header[HeaderXForwardedFor]; ok {
-		ips := strings.Split(value[0], ",")
-		remoteIp = ips[len(ips)-1]
+func getIpFields(ginCtx *gin.Context, ipReader ipread.Reader) (map[string]any, error) {
+	var clientIp string
+	var remoteIp string
+	var err error
+
+	if clientIp, err = ResolveClientIP(ginCtx.Request, ForwardedIp); err != nil {
+		return nil, err
+	}
+
+	if remoteIp, err = ResolveClientIP(ginCtx.Request, RemoteIp); err != nil {
+		return nil, err
 	}
 
 	fields := make(map[string]any, 6)
@@ -151,7 +162,7 @@ func getIpFields(ginCtx *gin.Context, ipReader ipread.Reader) map[string]any {
 	fields["remote_ip"] = remoteIp
 
 	if ipReader == nil {
-		return fields
+		return fields, nil
 	}
 
 	if location, err := ipReader.City(clientIp); err == nil && location != nil {
@@ -172,7 +183,7 @@ func getIpFields(ginCtx *gin.Context, ipReader ipread.Reader) map[string]any {
 		}
 	}
 
-	return fields
+	return fields, nil
 }
 
 func (lc *logCall) finalize(ginCtx *gin.Context, requestTimeSecond float64) {
