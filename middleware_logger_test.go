@@ -23,6 +23,7 @@ import (
 	"github.com/justtrackio/gosoline/pkg/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -47,7 +48,7 @@ func (s *loggingMiddlewareTestSuite) SetupTest() {
 }
 
 func (s *loggingMiddlewareTestSuite) TestSuccess() {
-	ginCtx := buildRequest()
+	ginCtx := buildRequest(s.T())
 
 	s.logger.EXPECT().Info(matcher.Context, "%s %s %s", "GET", "path", "HTTP/1.1")
 
@@ -55,7 +56,7 @@ func (s *loggingMiddlewareTestSuite) TestSuccess() {
 }
 
 func (s *loggingMiddlewareTestSuite) TestRequestValidationError() {
-	ginCtx := buildRequest()
+	ginCtx := buildRequest(s.T())
 
 	err := ginCtx.Error(validation.NewError(fmt.Errorf("test error")))
 
@@ -67,7 +68,7 @@ func (s *loggingMiddlewareTestSuite) TestRequestValidationError() {
 }
 
 func (s *loggingMiddlewareTestSuite) TestEOFError() {
-	ginCtx := buildRequest()
+	ginCtx := buildRequest(s.T())
 
 	err := ginCtx.Error(io.EOF)
 
@@ -79,7 +80,7 @@ func (s *loggingMiddlewareTestSuite) TestEOFError() {
 }
 
 func (s *loggingMiddlewareTestSuite) TestBindError() {
-	ginCtx := buildRequest()
+	ginCtx := buildRequest(s.T())
 
 	err := ginCtx.Error(&gin.Error{
 		Err:  fmt.Errorf("failed to read body"),
@@ -94,7 +95,7 @@ func (s *loggingMiddlewareTestSuite) TestBindError() {
 }
 
 func (s *loggingMiddlewareTestSuite) TestBindValidationErrorIncludesInvalidValue() {
-	ginCtx := buildRequest()
+	ginCtx := buildRequest(s.T())
 
 	type input struct {
 		Value string `validate:"oneof=a b"`
@@ -122,7 +123,7 @@ func (s *loggingMiddlewareTestSuite) TestBindValidationErrorIncludesInvalidValue
 }
 
 func (s *loggingMiddlewareTestSuite) TestRenderError() {
-	ginCtx := buildRequest()
+	ginCtx := buildRequest(s.T())
 
 	err := ginCtx.Error(&gin.Error{
 		Err:  fmt.Errorf("failed to write body"),
@@ -137,7 +138,7 @@ func (s *loggingMiddlewareTestSuite) TestRenderError() {
 }
 
 func (s *loggingMiddlewareTestSuite) TestDefaultError() {
-	ginCtx := buildRequest()
+	ginCtx := buildRequest(s.T())
 
 	err := ginCtx.Error(fmt.Errorf("error"))
 
@@ -149,7 +150,7 @@ func (s *loggingMiddlewareTestSuite) TestDefaultError() {
 }
 
 func (s *loggingMiddlewareTestSuite) TestClientStatusError() {
-	ginCtx := buildRequest()
+	ginCtx := buildRequest(s.T())
 	statusError := errorWithHeaders{statusCode: http.StatusForbidden}
 	err := fmt.Errorf("handler failed: %w", statusError)
 
@@ -162,7 +163,7 @@ func (s *loggingMiddlewareTestSuite) TestClientStatusError() {
 }
 
 func (s *loggingMiddlewareTestSuite) TestServerStatusError() {
-	ginCtx := buildRequest()
+	ginCtx := buildRequest(s.T())
 	err := errorWithHeaders{statusCode: http.StatusInternalServerError}
 
 	ginErr := ginCtx.Error(err)
@@ -174,7 +175,7 @@ func (s *loggingMiddlewareTestSuite) TestServerStatusError() {
 }
 
 func TestLogFields(t *testing.T) {
-	ginCtx := buildRequest()
+	ginCtx := buildRequest(t)
 	ginCtx.Request.Host = "host.io"
 	ginCtx.Request.Header.Set(httpserver.HeaderUserAgent, "test/User-Agent")
 	ginCtx.Request.Header.Set(httpserver.HeaderReferer, "referer")
@@ -244,7 +245,7 @@ func TestLogFields(t *testing.T) {
 }
 
 func TestLogEncodedRequestBody(t *testing.T) {
-	ginCtx := buildRequest()
+	ginCtx := buildRequest(t)
 	ginCtx.Request.Body = io.NopCloser(strings.NewReader("{}"))
 
 	logger := logMocks.NewLogger(t)
@@ -266,7 +267,7 @@ func TestLogEncodedRequestBody(t *testing.T) {
 	handler(ginCtx)
 }
 
-func buildRequest() *gin.Context {
+func buildRequest(t *testing.T) *gin.Context {
 	w := httptest.NewRecorder()
 
 	ginCtx, _ := gin.CreateTestContext(w)
@@ -282,6 +283,9 @@ func buildRequest() *gin.Context {
 			RawQuery: "foo=bar",
 		},
 	}
+	middleware, err := httpserver.NewSetTrustedProxiesMiddleware([]string{"127.0.0.1/32"})
+	require.NoError(t, err)
+	middleware(ginCtx)
 
 	return ginCtx
 }

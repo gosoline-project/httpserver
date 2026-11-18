@@ -80,6 +80,8 @@ type (
 		Concurrency ConcurrencySettings `cfg:"concurrency"`
 		// Chaos settings control optional random delays and rejections for resilience testing.
 		Chaos ChaosSettings `cfg:"chaos"`
+		// TrustedCIDRs describes the networks we trust to forward us correct IP addresses.
+		TrustedCIDRs []string `cfg:"trusted_cidrs" default:"0.0.0.0/0,::/0"`
 	}
 
 	// ConcurrencySettings configures pressure limits for a HTTP server.
