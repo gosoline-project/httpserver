@@ -88,6 +88,7 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 			compressionMiddlewares         []gin.HandlerFunc
 			healthChecker                  kernel.HealthChecker
 			connectionLifeCycleInterceptor gin.HandlerFunc
+			setTrustedProxiesMiddleware    gin.HandlerFunc
 		)
 
 		if tracingInstrumentor, err = tracing.ProvideInstrumentor(ctx, config, logger); err != nil {
@@ -113,9 +114,20 @@ func NewServerWithSettings(_ context.Context, name string, definer RouterFactory
 			return nil, fmt.Errorf("could not provide connection life cycle interceptor: %w", err)
 		}
 
+		if setTrustedProxiesMiddleware, err = NewSetTrustedProxiesMiddleware(settings.TrustedCIDRs); err != nil {
+			return nil, fmt.Errorf("could not create trusted proxies middleware: %w", err)
+		}
+
 		router := gin.New()
+		if err = router.SetTrustedProxies(settings.TrustedCIDRs); err != nil {
+			return nil, fmt.Errorf("could not set trusted proxies: %w", err)
+		}
+
 		router.ContextWithFallback = true
 		router.UseRawPath = settings.Router.UseRawPath
+
+		// make sure the first middleware we use makes the trusted proxies available for any downstream handlers and middlewares
+		router.Use(setTrustedProxiesMiddleware)
 		router.Use(ResponseNegotiationMiddleware(serverOpts.responseNegotiator))
 		router.Use(samplingMiddleware)
 		router.Use(metricMiddleware)
