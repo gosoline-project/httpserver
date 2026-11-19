@@ -29,7 +29,7 @@ toolchain. CI reads the minimum from `go.mod`, and `mise.toml` pins the same
 patched release.
 
 The dependency security refresh retains Gin 1.11.0 and JWT v5.3.0. The
-current graph selects Gosoline v0.69.4-0.20261119150327-6e9683b70da1,
+current graph selects Gosoline v0.69.4-0.20261119192118-ea1ab1cd583b,
 aligned with OpenTelemetry 1.47 and including its metric contract.
 The refresh updates the affected QUIC, OAuth, HTTP/2, gRPC,
 OpenTelemetry, AWS event-stream, compression, and Docker test-harness
@@ -46,7 +46,7 @@ should validate their own traffic and collector configuration.
 The selected Gosoline revision also changes its guard interface, removes
 CrateDB support, changes Avro codec and S3 checksum behavior, and updates
 telemetry and compression. Its default Avro codec still has no map-allocation
-limit. Review [Gosoline's compatibility notes](https://github.com/justtrackio/gosoline/blob/6e9683b70da1cd58105659652b3d89c9aa115dc7/README.md#requirements-and-upgrade-compatibility)
+limit. Review [Gosoline's compatibility notes](https://github.com/justtrackio/gosoline/blob/ea1ab1cd583bd646cc4a4c45e9e7610695798653/README.md#requirements-and-upgrade-compatibility)
 before upgrading downstream integrations.
 
 Consumers should also review these changes in the selected dependency graph:

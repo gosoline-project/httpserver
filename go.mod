@@ -10,7 +10,7 @@ require (
 	github.com/go-resty/resty/v2 v2.7.1-0.20230308051516-1578007c3c8d
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/justtrackio/gosoline v0.69.4-0.20261119150327-6e9683b70da1
+	github.com/justtrackio/gosoline v0.69.4-0.20261119192118-ea1ab1cd583b
 	github.com/stretchr/testify v1.12.1
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/metric v1.47.0
