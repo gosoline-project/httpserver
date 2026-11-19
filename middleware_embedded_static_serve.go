@@ -20,14 +20,16 @@ func CreateEmbeddedStaticServe(files embed.FS, dir string, excludes ...string) M
 	return func(ctx context.Context, config cfg.Config, logger log.Logger, _ *Settings) (gin.HandlerFunc, error) {
 		var err error
 		var dist fs.FS
-		var file fs.File
-		var stat fs.FileInfo
 
 		if dist, err = fs.Sub(files, dir); err != nil {
 			return nil, fmt.Errorf("failed to sub %q directory: %w", dir, err)
 		}
 
 		return func(c *gin.Context) {
+			var err error
+			var file fs.File
+			var stat fs.FileInfo
+
 			for _, exclude := range excludes {
 				if strings.HasPrefix(c.Request.URL.Path, exclude) {
 					return
@@ -36,7 +38,6 @@ func CreateEmbeddedStaticServe(files embed.FS, dir string, excludes ...string) M
 
 			path := strings.TrimPrefix(c.Request.URL.Path, "/")
 			ext := filepath.Ext(path)
-			contentType := mime.TypeByExtension(ext)
 
 			if path == "" || ext == "" {
 				path = "index.html"
@@ -56,6 +57,7 @@ func CreateEmbeddedStaticServe(files embed.FS, dir string, excludes ...string) M
 				return
 			}
 
+			contentType := mime.TypeByExtension(filepath.Ext(path))
 			c.DataFromReader(http.StatusOK, stat.Size(), contentType, file, map[string]string{})
 			c.Abort()
 		}, nil
