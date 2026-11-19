@@ -29,16 +29,16 @@ toolchain. CI reads the minimum from `go.mod`, and `mise.toml` pins the same
 patched release.
 
 The dependency security refresh retains Gin 1.11.0 and JWT v5.3.0. The
-current graph selects Gosoline v0.69.3-0.20261116142819-dd575e2276c4,
-needed for the OpenTelemetry log 0.21 API, and includes its metric contract.
+current graph selects Gosoline v0.69.4-0.20261119150327-6e9683b70da1,
+aligned with OpenTelemetry 1.47 and including its metric contract.
 The refresh updates the affected QUIC, OAuth, HTTP/2, gRPC,
 OpenTelemetry, AWS event-stream, compression, and Docker test-harness
 dependencies to their first fixed releases, including any newer versions
 required by that combined module graph.
 
-The current graph uses Brotli 1.2.7, Compress 1.20.2, x/net 0.62.0,
-OpenTelemetry API, SDK, and both OTLP metric exporters 1.45.0, and the
-OpenTelemetry log SDK and HTTP/gRPC exporters 0.21.0. The aligned metric
+The current graph uses Brotli 1.2.7, Compress 1.20.4, x/net 0.62.0,
+OpenTelemetry API, SDK, log SDK, and both OTLP metric exporters 1.47.0,
+and the OpenTelemetry HTTP/gRPC log exporters 0.23.0. The aligned metric
 exporters support map-valued attributes. Compression and telemetry updates may
 change malformed-input handling and exporter behavior; downstream integrations
 should validate their own traffic and collector configuration.
@@ -46,7 +46,7 @@ should validate their own traffic and collector configuration.
 The selected Gosoline revision also changes its guard interface, removes
 CrateDB support, changes Avro codec and S3 checksum behavior, and updates
 telemetry and compression. Its default Avro codec still has no map-allocation
-limit. Review [Gosoline's compatibility notes](https://github.com/justtrackio/gosoline/blob/dd575e2276c4a048ad9fe1a68857d0c0da899b09/README.md#requirements-and-upgrade-compatibility)
+limit. Review [Gosoline's compatibility notes](https://github.com/justtrackio/gosoline/blob/6e9683b70da1cd58105659652b3d89c9aa115dc7/README.md#requirements-and-upgrade-compatibility)
 before upgrading downstream integrations.
 
 Consumers should also review these changes in the selected dependency graph:
@@ -56,13 +56,19 @@ Consumers should also review these changes in the selected dependency graph:
 - QUIC 0.59.1 and QPACK 0.6.0 bound decoded header and trailer sections;
   oversized headers may receive HTTP 431. Direct QUIC tracing and WebTransport
   API users must review upstream changes.
+  When a router is hosted directly by an HTTP/3 server, the existing SSE
+  writer's `Connection` header is invalid for HTTP/3; a loopback QUIC client
+  rejects that SSE response. The same limitation exists on current main.
 - x/net 0.62.0 tightens HTTP/2, IDNA, DNS and proxy handling. gRPC 1.83.2
   rejects malformed paths and authorities and changes resolver, flow-control
   and status handling. OAuth2 0.36.0 changes token and credential handling.
-- OpenTelemetry 1.45 changes attribute types, exporter endpoint and error
-  handling, and the metric SDK's default cardinality limit. Log 0.21 uses the
-  updated value API. Collector configuration, custom instruments, dashboards
-  and code depending on older telemetry APIs need their own migration checks.
+- OpenTelemetry 1.47 includes the 1.45 attribute, exporter and cardinality
+  changes and fixes baggage parsing and attribute-length-limit handling.
+  With a configured finite span attribute limit, values containing U+FFFD are
+  now truncated at the limit instead of bypassing it. The log API and SDK are
+  stable at 1.47; OTLP log exporters use 0.23. Collector configuration, custom
+  instruments, dashboards and code depending on older telemetry APIs need their
+  own migration checks.
 - Updated AWS SDK defaults add S3 request checksums and response validation;
   custom S3-compatible endpoints must support the new behavior. Docker client
   changes affect test-harness APIs but do not update the host Docker or runc
@@ -98,16 +104,13 @@ validated download without compatibility overrides on the earlier graph.
 The selected Gosoline revision and OpenTelemetry SDK both use resource schema
 1.43.0. The provider regression test constructs the actual Gosoline tracer and
 metric writer, exports a span and a metric with a string dimension over local
-OTLP HTTP and gRPC, and checks that both carry this schema. The selected SDK's
-metric exporter test also exercises map-valued attributes over both transports.
+OTLP HTTP and gRPC, and checks that both carry this schema. A separate
+exporter test checks nested map attributes and an integer histogram over both.
 These local tests do not validate an external collector's TLS, authentication,
 retry or deployment configuration.
 
-The current repository suite has also run against the selected dependency
-graph with Go 1.26.11, including the inherited HTTP binding and error tests.
-The provider and profiling regressions were additionally exercised with Go
-1.27.4. Earlier full-suite results on the SDK `1bc0b85` candidate predate its
-exporter-only follow-up to `dd575e2` and are not evidence for the final graph.
+Earlier full-suite results on SDK candidates `1bc0b85` and `dd575e2` are
+historical evidence for those graphs, not for the currently selected graph.
 
 The earlier released Gosoline v0.63.5 OpenTelemetry provider was also started
 with the updated SDK and exported a real span to an owned OpenTelemetry
