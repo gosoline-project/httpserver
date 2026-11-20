@@ -393,6 +393,10 @@ github.com/json-iterator/go v1.1.12 h1:PV8peI4a0ysnczrg+LtxykD8LfKY9ML6u2jnxaEnr
 github.com/json-iterator/go v1.1.12/go.mod h1:e30LSqwooZae/UwlEbR2852Gd8hjQvJoHmT4TnhNGBo=
 github.com/justtrackio/gosoline v0.69.0 h1:Mf4b8DGYBo5zQD+/M6X331rsloQPEpQaPSD1ndq5nAI=
 github.com/justtrackio/gosoline v0.69.0/go.mod h1:OzijntFPElyJ/3cxJIwGLIc14toXOBoLhxtCqyUenpE=
+github.com/justtrackio/gosoline v0.69.2-0.20261111143014-3feaf903fac8 h1:PERM2mslzS6dc80ed5S+/alzCxyB3BcgyKNpCf6X83g=
+github.com/justtrackio/gosoline v0.69.2-0.20261111143014-3feaf903fac8/go.mod h1:OzijntFPElyJ/3cxJIwGLIc14toXOBoLhxtCqyUenpE=
+github.com/justtrackio/gosoline v0.69.2-0.20261111151920-6b90b33bb96e h1:L0ajTceTBFCNi4pJyQE2BfYzupumXdVu27X9uuMgUSI=
+github.com/justtrackio/gosoline v0.69.2-0.20261111151920-6b90b33bb96e/go.mod h1:OzijntFPElyJ/3cxJIwGLIc14toXOBoLhxtCqyUenpE=
 github.com/karlseguin/ccache v0.0.0-20181227155450-692cd618b264 h1:efMPF7gQ3CFY8Kt3ECYuCc17fnoiu0EL1Tw+z7ff030=
 github.com/karlseguin/ccache v0.0.0-20181227155450-692cd618b264/go.mod h1:CM9tNPzT6EdRh14+jiW8mEF9mkNZuuE51qmgGYUB93w=
 github.com/karlseguin/expect v1.0.8 h1:Bb0H6IgBWQpadY25UDNkYPDB9ITqK1xnSoZfAq362fw=

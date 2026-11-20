@@ -29,9 +29,13 @@ type (
 
 	// LoggingSettings configures request logging middleware.
 	LoggingSettings struct {
-		RequestBody       bool     `cfg:"request_body"`
-		RequestBodyBase64 bool     `cfg:"request_body_base64"`
-		RequestHeaders    []string `cfg:"request_headers"`
+		// Query/body capture requires explicit field allowlists; confidential keys remain masked.
+		RequestQueryParameters []string `cfg:"request_query_parameters"`
+		RequestBodyFields      []string `cfg:"request_body_fields"`
+		RequestReferer         bool     `cfg:"request_referer"`
+		RequestBody            bool     `cfg:"request_body"`
+		RequestBodyBase64      bool     `cfg:"request_body_base64"`
+		RequestHeaders         []string `cfg:"request_headers"`
 	}
 
 	// ErrorsSettings configures error responses returned by the error middleware.
