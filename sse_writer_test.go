@@ -42,7 +42,7 @@ func (s *SseWriterTestSuite) TestSend() {
 	// Check headers
 	s.Equal(httpserver.ContentTypeEventStream, s.rec.Header().Get(httpserver.HeaderContentType))
 	s.Equal(httpserver.HeaderValueNoCache, s.rec.Header().Get(httpserver.HeaderCacheControl))
-	s.Equal(httpserver.HeaderValueKeepAlive, s.rec.Header().Get(httpserver.HeaderConnection))
+	s.Empty(s.rec.Header().Get(httpserver.HeaderConnection))
 
 	// Check body
 	expected := "data: hello world\n\n"

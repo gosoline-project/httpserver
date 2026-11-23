@@ -51,7 +51,7 @@ type (
 const DefaultSseHeartbeatInterval = 5 * time.Second
 
 // NewSseWriter creates a new SSE writer that sends events to the provided response writer.
-// It sets the necessary SSE headers (Content-Type, Cache-Control, Connection).
+// It sets the Content-Type and Cache-Control headers.
 //
 // The context is used to detect client disconnects. When the context is cancelled,
 // subsequent Send/SendEvent calls will return ErrClientDisconnected.
@@ -66,7 +66,6 @@ const DefaultSseHeartbeatInterval = 5 * time.Second
 func NewSseWriter(ctx context.Context, writer SseResponseWriter) *SseWriter {
 	writer.Header().Set(HeaderContentType, ContentTypeEventStream)
 	writer.Header().Set(HeaderCacheControl, HeaderValueNoCache)
-	writer.Header().Set(HeaderConnection, HeaderValueKeepAlive)
 
 	// Warn if gzip is active (should not happen if client sent Accept: text/event-stream)
 	// We delete the Content-Encoding header as a safety measure, though ideally the gzip
