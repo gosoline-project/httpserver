@@ -31,15 +31,6 @@ type Definition struct {
 	Handlers     []gin.HandlerFunc
 }
 
-func (d *Definition) getAbsolutePath() string {
-	groupPath := d.Group.getAbsolutePath()
-
-	absolutePath := fmt.Sprintf("%s/%s", groupPath, d.RelativePath)
-	absolutePath = trimRightPath(absolutePath)
-
-	return removeDuplicates(absolutePath)
-}
-
 // Router stores route definitions, middleware, and nested groups before they are mounted on Gin.
 type Router struct {
 	basePath            string
@@ -50,18 +41,6 @@ type Router struct {
 
 	children []*Router
 	parent   *Router
-}
-
-func (d *Router) getAbsolutePath() string {
-	parentPath := "/"
-
-	if d.parent != nil {
-		parentPath = d.parent.getAbsolutePath()
-	}
-
-	absolutePath := fmt.Sprintf("%s/%s", parentPath, d.basePath)
-
-	return removeDuplicates(absolutePath)
 }
 
 // Group creates a nested router group below the current router path.
@@ -146,19 +125,18 @@ func (d *Router) OPTIONS(relativePath string, handlers ...gin.HandlerFunc) {
 	d.Handle(http.MethodOptions, relativePath, handlers...)
 }
 
-func buildRouter(ctx context.Context, config cfg.Config, logger log.Logger, settings *Settings, definitions *Router, router gin.IRouter) ([]Definition, error) {
+func buildRouter(ctx context.Context, config cfg.Config, logger log.Logger, settings *Settings, definitions *Router, router gin.IRouter) error {
 	if definitions == nil {
-		return nil, fmt.Errorf("route definitions should not be nil")
+		return fmt.Errorf("route definitions should not be nil")
 	}
 
 	var err error
 	var register func(router *Router)
-	var definitionList, childDefinitions []Definition
 	var middleware gin.HandlerFunc
 
 	for _, registerFactory := range definitions.registerFactories {
 		if register, err = registerFactory(ctx, config, logger, definitions); err != nil {
-			return nil, err
+			return err
 		}
 
 		register(definitions)
@@ -172,7 +150,7 @@ func buildRouter(ctx context.Context, config cfg.Config, logger log.Logger, sett
 
 	for _, f := range definitions.middlewareFactories {
 		if middleware, err = f(ctx, config, logger, settings); err != nil {
-			return nil, fmt.Errorf("error creating middleware: %w", err)
+			return fmt.Errorf("error creating middleware: %w", err)
 		}
 
 		grp.Use(middleware)
@@ -185,16 +163,13 @@ func buildRouter(ctx context.Context, config cfg.Config, logger log.Logger, sett
 		grp.Handle(d.HttpMethod, d.RelativePath, handlers...)
 	}
 
-	definitionList = append(definitionList, definitions.routes...)
 	for _, c := range definitions.children {
-		if childDefinitions, err = buildRouter(ctx, config, logger, settings, c, grp); err != nil {
-			return nil, fmt.Errorf("error building children: %w", err)
+		if err = buildRouter(ctx, config, logger, settings, c, grp); err != nil {
+			return fmt.Errorf("error building children: %w", err)
 		}
-
-		definitionList = append(definitionList, childDefinitions...)
 	}
 
-	return definitionList, nil
+	return nil
 }
 
 func removeDuplicates(s string) string {
