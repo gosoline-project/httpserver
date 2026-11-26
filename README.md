@@ -36,6 +36,11 @@ OpenTelemetry, AWS event-stream, compression, and Docker test-harness
 dependencies to their first fixed releases, including any newer versions
 required by that combined module graph.
 
+Before upgrading an application, select a Gosoline release that uses resource
+schema 1.43.0. Go can select a released version over the snapshot above.
+Gosoline v0.69.4 and v0.69.5 use schema 1.41.0, which conflicts with
+OpenTelemetry 1.47 when the OTLP tracer starts.
+
 The current graph uses Brotli 1.2.7, Compress 1.20.4, x/net 0.62.0,
 OpenTelemetry API, SDK, log SDK, and both OTLP metric exporters 1.47.0,
 and the OpenTelemetry HTTP/gRPC log exporters 0.23.0. The aligned metric
@@ -56,9 +61,8 @@ Consumers should also review these changes in the selected dependency graph:
 - QUIC 0.59.1 and QPACK 0.6.0 bound decoded header and trailer sections;
   oversized headers may receive HTTP 431. Direct QUIC tracing and WebTransport
   API users must review upstream changes.
-  When a router is hosted directly by an HTTP/3 server, the existing SSE
-  writer's `Connection` header is invalid for HTTP/3; a loopback QUIC client
-  rejects that SSE response. The same limitation exists on current main.
+- The SSE writer no longer sends `Connection: keep-alive`. HTTP/3 rejects this
+  header, and HTTP/1.1 connections can still be reused without it.
 - x/net 0.62.0 tightens HTTP/2, IDNA, DNS and proxy handling. gRPC 1.83.2
   rejects malformed paths and authorities and changes resolver, flow-control
   and status handling. OAuth2 0.36.0 changes token and credential handling.
