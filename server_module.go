@@ -165,6 +165,7 @@ func createRouter(
 
 	// make sure the first middleware we use makes the trusted proxies available for any downstream handlers and middlewares
 	router.Use(setTrustedProxiesMiddleware)
+	router.Use(RouteTracingMiddleware)
 	router.Use(ResponseNegotiationMiddleware(serverOpts.responseNegotiator))
 	router.Use(samplingMiddleware)
 	router.Use(metricMiddleware)
